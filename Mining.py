@@ -1,6 +1,6 @@
-from py_stealth import *
-from datetime import *
 import timeit
+from datetime import datetime
+from stealth import *
 
 def bank():
     starttime = datetime.now()
@@ -10,10 +10,9 @@ def bank():
         CheckLag(10000)
 
 
-def TypeQuantity(type, color, container):
-    if FindTypeEx(type, color, container, True):
-        return FindFullQuantity()
-    return 0
+def TypeQuantity(type, color='0x0000', container=Backpack()):
+    FindTypeEx(type, color, container, True)
+    return FindFullQuantity()
 
 
 def ressurect():
@@ -153,6 +152,9 @@ def SortTrees(trees):
 
 
 if __name__ == '__main__':
+    print(TypeQuantity(0x0EE, 0x0000, Backpack()))
+    Wait(500000000000)
+
     start_cordinates = (GetX(Self()), GetX(Self()))
     while (True):
         start = timeit.timeit()
