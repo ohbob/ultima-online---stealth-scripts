@@ -1,6 +1,7 @@
 from datetime import datetime, timedelta
 from py_stealth import *
 
+
 def tame():
     animals = (0x00DC, 0x00D8, 0x00ED, 0x00CD, 0x00CF, 0x0006)
     for animal in animals:
@@ -12,7 +13,7 @@ def tame():
                     if GetDistance(target) > 1:
                         NewMoveXY(GetX(target), GetY(target), True, 1, True)
                     timeout = datetime.now() + timedelta(milliseconds=25000)
-                    starttime =  datetime.now()
+                    starttime = datetime.now()
                     UseSkill('Animal taming')
                     WaitTargetObject(target)
                     tamed = False
@@ -38,9 +39,10 @@ def tame():
                         if datetime.now() > timeout:
                             return
 
+
 SetFindDistance(40)
 SetFindVertical(40)
-rail = [(2118, 2795),(2115, 2778),(2113, 2745),(2113, 2709),(2103, 2685),(2083, 2661)]
+rail = [(2118, 2795), (2115, 2778), (2113, 2745), (2113, 2709), (2103, 2685), (2083, 2661)]
 while GetSkillValue('Animal taming') < 100.0:
     for x, y in rail:
         NewMoveXY(x, y, True, 1, True)
