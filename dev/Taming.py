@@ -3,7 +3,16 @@ from py_stealth import *
 
 
 def tame():
-    animals = (0x00DC, 0x00D8, 0x00ED, 0x00CD, 0x00CF, 0x0006)
+    skill = GetSkillValue('Animal taming')
+    if skill < 30:
+        animals = (0x000)
+    if skill > 30:
+        animals = (0x00DC, 0x00D8, 0x00ED, 0x00CD, 0x00CF, 0x0006, 0x00EA, 0x00E7)
+    if skill > 65:
+        animals = (0x00DC, 0x00D8, 0x00ED, 0x00CD, 0x00CF, 0x0006, 0x00EA, 0x00EA, 0x00E7)
+    if skill > 90:
+        animals = (0x00DC, 0x00D8, 0x00ED, 0x00CD, 0x00CF, 0x0006, 0x00EA, 0x00EA, 0x00E7, 0x00E8, 0x00E9)
+
     for animal in animals:
         if FindType(animal, Ground()) > 0:
             mobarounds = GetFindedList()
@@ -20,11 +29,16 @@ def tame():
                     while not tamed:
                         if ((InJournalBetweenTimes("accept you ", starttime, datetime.now())) > 0):
                             tamed = True
-                        elif ((InJournalBetweenTimes("fail to ", starttime, datetime.now())) > 0):
+                        elif ((InJournalBetweenTimes("fail to |clear path |", starttime, datetime.now())) > 0):
                             starttime = datetime.now()
                             timeout = datetime.now() + timedelta(milliseconds=25000)
                             UseSkill('Animal taming')
                             WaitTargetObject(target)
+                        elif ((InJournalBetweenTimes("Someone else is already taming |cannot be ", starttime, datetime.now())) > 0):
+                            return
+                        elif ((InJournalBetweenTimes("looks tame ", starttime, datetime.now())) > 0):
+                            Ignore(target)
+                            return
                         elif datetime.now() > timeout:
                             return
                         if GetDistance(target) > 1:
