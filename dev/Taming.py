@@ -1,12 +1,15 @@
 ''' Script Name: Trinsic Tamer
-; Author: Camo
-; Version: 0.3 Beta
-; Client Tested with: 7.0.20.0
-; Stealth version tested with: 8.9.5
-; Shard OSI / FS: http://uoinfinity.net/
-; Revision Date: 2019/05/29
-; Public Release: 2019/05/29
-; Notes: Get 30 taming, bunch of butchers knifes, daggers and clubs and head to trinsic north east shore and press play.
+ Author: Camo
+ Version: 0.3 Beta
+ Client Tested with: 7.0.20.0
+ Stealth version tested with: 8.9.5
+ Shard OSI / FS: http://uoinfinity.net/
+ Revision Date: 2019/05/29
+ Public Release: 2019/05/29
+ Notes: Get 30 taming, bunch of butchers knifes, daggers and clubs and head to trinsic north east shore and press play.
+
+ Revision. 0.3 -- Added the right animal skill requirements for all the animals in the area, added training weapons.
+ Revision. 0.2 -- Added timeouts, to not get stuck, just in case.
 '''
 
 from datetime import datetime, timedelta
