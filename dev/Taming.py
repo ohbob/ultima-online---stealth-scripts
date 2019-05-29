@@ -5,13 +5,17 @@ from py_stealth import *
 def tame():
     skill = GetSkillValue('Animal taming')
     if skill < 30:
-        animals = (0x000)
+        animals = (0x00CD, 0x0006) # rabbit, birds
     if skill > 30:
-        animals = (0x00DC, 0x00D8, 0x00ED, 0x00CD, 0x00CF, 0x0006, 0x00EA, 0x00E7)
-    if skill > 65:
-        animals = (0x00DC, 0x00D8, 0x00ED, 0x00CD, 0x00CF, 0x0006, 0x00EA, 0x00EA, 0x00E7)
-    if skill > 90:
-        animals = (0x00DC, 0x00D8, 0x00ED, 0x00CD, 0x00CF, 0x0006, 0x00EA, 0x00EA, 0x00E7, 0x00E8, 0x00E9)
+        animals = (0x00CD, 0x0006, 0x00CF, 0x00D8) # rabbit, birds, sheep
+    if skill > 50:
+        animals = (0x00CD, 0x0006, 0x00CF, 0x00D8, 0x00ED)  # rabbit, birds, sheep, hind
+    if skill > 50:
+        animals = (0x00CD, 0x0006, 0x00CF, 0x00D8, 0x00ED, 0x00DC)  # rabbit, birds, sheep, hind, llama
+    if skill > 70:
+        animals = (0x00CD, 0x0006, 0x00CF, 0x00D8, 0x00ED, 0x00DC, 0x00EA) # rabbit, birds, sheep, hind, llama, great hart
+    if skill > 80:
+        animals = (0x00CD, 0x0006, 0x00CF, 0x00D8, 0x00ED, 0x00DC, 0x00EA, 0x00E9) # rabbit, birds, sheep, hind, llama, great hart, a bull
 
     for animal in animals:
         if FindType(animal, Ground()) > 0:
@@ -44,11 +48,19 @@ def tame():
                         if GetDistance(target) > 1:
                             NewMoveXY(GetX(target), GetY(target), True, 1, True)
                         Wait(50)
+                    if GetSkillValue('Swordsmanship') < 100.0:
+                        UseType2(0x13F6)  # butchers knife
+                    elif GetSkillValue('Fencing') < 100.0:
+                        UseType2(0x0F52)  # dagger
+                    elif GetSkillValue('Mace fighting') < 100.0:
+                        UseType2(0x13B4)  # Club
                     timeout = datetime.now() + timedelta(milliseconds=25000)
                     while IsObjectExists(target) > 0:
                         if GetDistance(target) > 1:
                             NewMoveXY(GetX(target), GetY(target), True, 1, True)
                         Attack(target)
+                        if TargetPresent():
+                            CancelTarget()
                         Wait(50)
                         if datetime.now() > timeout:
                             return
