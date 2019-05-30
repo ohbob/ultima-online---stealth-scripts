@@ -10,6 +10,7 @@
 
  Revision. 0.3 -- Added the right animal skill requirements for all the animals in the area, added training weapons.
  Revision. 0.2 -- Added timeouts, to not get stuck, just in case.
+ Revision 0.3 -- Added too far message and a cow that was missing with a second bull type.
 '''
 
 from datetime import datetime, timedelta
@@ -21,15 +22,15 @@ def tame():
     if skill < 30:
         animals = (0x00CD, 0x0006) # rabbit, birds
     if skill > 30:
-        animals = (0x00CD, 0x0006, 0x00CF, 0x00D8) # rabbit, birds, sheep
+        animals = (0x00CD, 0x0006, 0x00CF, 0x00D8, 0x00E7) # rabbit, birds, sheep, cow
     if skill > 50:
-        animals = (0x00CD, 0x0006, 0x00CF, 0x00D8, 0x00ED)  # rabbit, birds, sheep, hind
+        animals = (0x00CD, 0x0006, 0x00CF, 0x00D8, 0x00E7, 0x00ED)  # rabbit, birds, sheep, cow, hind
     if skill > 50:
-        animals = (0x00CD, 0x0006, 0x00CF, 0x00D8, 0x00ED, 0x00DC)  # rabbit, birds, sheep, hind, llama
+        animals = (0x00CD, 0x0006, 0x00CF, 0x00D8, 0x00E7, 0x00ED, 0x00DC)  # rabbit, birds, sheep, cow, hind, llama
     if skill > 70:
-        animals = (0x00CD, 0x0006, 0x00CF, 0x00D8, 0x00ED, 0x00DC, 0x00EA) # rabbit, birds, sheep, hind, llama, great hart
+        animals = (0x00CD, 0x0006, 0x00CF, 0x00D8, 0x00E7, 0x00ED, 0x00DC, 0x00EA) # rabbit, birds, sheep, cow, hind, llama, great hart
     if skill > 80:
-        animals = (0x00CD, 0x0006, 0x00CF, 0x00D8, 0x00ED, 0x00DC, 0x00EA, 0x00E9) # rabbit, birds, sheep, hind, llama, great hart, a bull
+        animals = (0x00CD, 0x0006, 0x00CF, 0x00D8, 0x00E7, 0x00ED, 0x00DC, 0x00EA, 0x00E8, 0x00E9) # rabbit, birds, sheep, cow, hind, llama, great hart, a bull
 
     for animal in animals:
         if FindType(animal, Ground()) > 0:
@@ -52,7 +53,7 @@ def tame():
                             timeout = datetime.now() + timedelta(milliseconds=25000)
                             UseSkill('Animal taming')
                             WaitTargetObject(target)
-                        elif ((InJournalBetweenTimes("Someone else is already taming |cannot be ", starttime, datetime.now())) > 0):
+                        elif ((InJournalBetweenTimes("Someone else is already taming |cannot be |too far", starttime, datetime.now())) > 0):
                             return
                         elif ((InJournalBetweenTimes("looks tame ", starttime, datetime.now())) > 0):
                             Ignore(target)
