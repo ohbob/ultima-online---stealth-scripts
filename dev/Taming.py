@@ -10,7 +10,7 @@
 
  Revision. 0.3 -- Added the right animal skill requirements for all the animals in the area, added training weapons.
  Revision. 0.2 -- Added timeouts, to not get stuck, just in case.
- Revision 0.3 -- Added too far message and a cow that was missing with a second bull type.
+ Revision. 0.3 -- Added too far message and a cow that was missing with a second bull type.
 '''
 
 from datetime import datetime, timedelta
