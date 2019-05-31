@@ -48,7 +48,7 @@ def tame():
                     while not tamed:
                         if ((InJournalBetweenTimes("accept you ", starttime, datetime.now())) > 0):
                             tamed = True
-                        elif ((InJournalBetweenTimes("fail to |clear path |", starttime, datetime.now())) > 0):
+                        elif ((InJournalBetweenTimes("fail to |clear path |is too far ", starttime, datetime.now())) > 0):
                             starttime = datetime.now()
                             timeout = datetime.now() + timedelta(milliseconds=25000)
                             UseSkill('Animal taming')
