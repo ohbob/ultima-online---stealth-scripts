@@ -93,11 +93,11 @@ def mine(list):
             starttime = datetime.now()
             WaitTargetTile(tile, x, y, z)
             WaitJournalLine(starttime, message_end, 120000)
-            if ((InJournalBetweenTimes(message_attack, starttime, datetime.now())) > 0):
-                UOSay("Guards")
-                Wait(500)
-                UOSay("Guards")
-                Wait(500)
+#             if ((InJournalBetweenTimes(message_attack, starttime, datetime.now())) > 0):
+#                 UOSay("Guards")
+#                 Wait(500)
+#                 UOSay("Guards")
+#                 Wait(500)
 
         elif Dead():
             ressurect()
@@ -152,9 +152,6 @@ def SortTrees(trees):
 
 
 if __name__ == '__main__':
-    print(TypeQuantity(0x0EE, 0x0000, Backpack()))
-    Wait(500000000000)
-
     start_cordinates = (GetX(Self()), GetX(Self()))
     while (True):
         start = timeit.timeit()
