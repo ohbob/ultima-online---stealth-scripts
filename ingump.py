@@ -1,9 +1,11 @@
-#import time
-def ingump(text="None", button=None):
+import time
+
+# Search text in gump, if text exists, press button. 
+def textingump(text: str = "None", button: int = None, timeout: int = 60) -> bool:
     found = False
-    gumptimeout = time.time()
-    
-    while not found and gumptimeout + 60 > time.time():
+    gumptimer = time.time()
+
+    while not found and gumptimer + timeout > time.time():
         for i in range(GetGumpsCount()):
             gump = GetGumpInfo(i)
             gumpnumber = i
