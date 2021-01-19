@@ -1,7 +1,7 @@
 import time
 
 def textingump(text: str = "None", buttonid: int = None, timeout: int = 90) -> bool:
-    """Search for text/xml in a gump, if found press a button
+    """Search for text/xml in a gump, if found press buttonid
      Args:
         text (str): name to search for
         buttonid (int): button id to press if text found
