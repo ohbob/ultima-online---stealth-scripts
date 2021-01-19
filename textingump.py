@@ -1,14 +1,21 @@
 import time
 
-# Search text in gump, if text exists, press button. 
-def textingump(text: str = "None", button: int = None, timeout: int = 60) -> bool:
-    found = False
-    gumptimer = time.time()
+def textingump(text: str = "None", buttonid: int = None, timeout: int = 90) -> bool:
+    """Search for text/xml in a gump, if found press a button
+     Args:
+        text (str): name to search for
+        buttonid (int): button id to press if text found
+        timeout (int): expiration of loop timeout
+    Returns:
+        bool: True / False
+    """
+    found: bool = False
+    gumptimeout = time.time()
 
-    while not found and gumptimer + timeout > time.time():
+    while not found and gumptimeout + timeout > time.time():
         for i in range(GetGumpsCount()):
             gump = GetGumpInfo(i)
-            gumpnumber = i
+            gumpindex = i
             if len(gump['XmfHTMLGumpColor']):
                 for x in gump['XmfHTMLGumpColor']:
                     if text.upper() in GetClilocByID(x['ClilocID']).upper():
@@ -22,7 +29,7 @@ def textingump(text: str = "None", button: int = None, timeout: int = 60) -> boo
                             break
         Wait(50)
 
-    if found and button is not None:
-        NumGumpButton(gumpnumber, button)
+    if found and buttonid is not None:
+        NumGumpButton(gumpindex, buttonid)
 
     return found
