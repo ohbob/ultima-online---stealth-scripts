@@ -4,7 +4,7 @@ import time
 from py_stealth import *
 
 hookurl = 'https://discord.com/api/webhooks/783722507420041216' \
-          '/R5Tx8akek9nZebXv2isGqDWK60087lrgzUJUF8vFLpE4PwTpos_WkZMxj_Z9ntMI-A3m '
+          '/R5Tx8akek9nZebXv2isGqDWK60087lrgzUJ№№№№№№№№###'
 
 # friends = ["Gitana", "Omar"] # если по никам
 friends = [0x123456, 0x234567]
