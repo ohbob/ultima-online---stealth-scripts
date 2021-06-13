@@ -5,7 +5,8 @@ import codecs
 from typing import List
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.responses import HTMLResponse
-from onmessage import *
+import onmessage
+
 app = FastAPI()
 html = codecs.open("index.html", 'r').read()
 
@@ -40,7 +41,7 @@ async def get():
 
 @app.get("/obj")
 async def get():
-    return obj
+    return onmessage.obj
 
 
 @app.websocket("/ws/{client_id}")
@@ -49,7 +50,7 @@ async def websocket_endpoint(websocket: WebSocket, client_id: str):
     try:
         while True:
             data = await websocket.receive_text()
-            if await onMessage(data):
+            if await onmessage.onMessage(data):
                 await manager.send_personal_message(f"Executed: {data}", websocket)
             else:
                 await manager.broadcast(f"Client #{client_id} There is no such command: {data}")

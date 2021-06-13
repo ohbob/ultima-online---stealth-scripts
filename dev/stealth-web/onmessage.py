@@ -4,6 +4,7 @@ obj = {"test": "test"}
 
 
 async def onMessage(message):
+    global obj
     param = ""
     split = message.split()
     if len(split) >= 2:
@@ -19,6 +20,10 @@ async def onMessage(message):
 
     elif '/useskill' in split:
         UseSkill(param)
+        return True
+
+    elif '/obj' in split:
+        obj = {'test2': 'test2'}
         return True
 
     return False
