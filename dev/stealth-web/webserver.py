@@ -5,7 +5,7 @@ import codecs
 from typing import List
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.responses import HTMLResponse
-from onmessage import onMessage
+from onmessage import *
 app = FastAPI()
 html = codecs.open("index.html", 'r').read()
 
@@ -37,6 +37,10 @@ manager = ConnectionManager()
 @app.get("/")
 async def get():
     return HTMLResponse(html)
+
+@app.get("/obj")
+async def get():
+    return obj
 
 
 @app.websocket("/ws/{client_id}")

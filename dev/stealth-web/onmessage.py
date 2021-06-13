@@ -1,13 +1,13 @@
 from py_stealth import *
 
+obj = {"test": "test"}
+
 
 async def onMessage(message):
-
+    param = ""
     split = message.split()
     if len(split) >= 2:
         param = split[1]
-    else:
-        param = ""
 
     if "/bark" in split:
         bark()
@@ -24,12 +24,8 @@ async def onMessage(message):
     return False
 
 
-
-
 def bark():
     UOSay("Woof")
-
-
 
 
 def say(msg):
