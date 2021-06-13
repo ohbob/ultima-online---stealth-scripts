@@ -13,14 +13,18 @@ async def onMessage(message):
 
     if "/bark" in split:
         bark()
+        log(f"barked")
         return True
 
     elif "/say" in split:
-        say(message.replace("/say", ""))
+        edited = message.replace("/say", "")
+        log(f"{GetName(Self())}: {edited}")
+        say(edited)
         return True
 
     elif '/useskill' in split:
         UseSkill(param)
+        log(f"used skill {param}")
         return True
 
     elif '/obj' in split:
