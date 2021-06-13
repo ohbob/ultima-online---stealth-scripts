@@ -1,6 +1,7 @@
 from py_stealth import *
 
 obj = {"test": "test"}
+broadcast = []
 
 
 async def onMessage(message):
@@ -23,6 +24,7 @@ async def onMessage(message):
         return True
 
     elif '/obj' in split:
+        log("object changed")
         obj = {'test2': 'test2'}
         return True
 
@@ -35,3 +37,8 @@ def bark():
 
 def say(msg):
     UOSay(msg)
+
+
+def log(message):
+    global broadcast
+    broadcast.append(message)

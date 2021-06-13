@@ -51,9 +51,17 @@ async def websocket_endpoint(websocket: WebSocket, client_id: str):
         while True:
             data = await websocket.receive_text()
             if await onmessage.onMessage(data):
+
+                # add messages to the log
+                for message in onmessage.broadcast:
+                    await manager.broadcast(f"{message}")
+                    onmessage.broadcast.pop(0)
+
                 await manager.send_personal_message(f"Executed: {data}", websocket)
             else:
                 await manager.broadcast(f"Client #{client_id} There is no such command: {data}")
+
+
     except WebSocketDisconnect:
         manager.disconnect(websocket)
         await manager.broadcast(f"Client #{client_id} left the chat")
