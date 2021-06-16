@@ -1,0 +1,1 @@
+<h1 class="bg-gray-50 text-center">You've seem to be lost</h1>

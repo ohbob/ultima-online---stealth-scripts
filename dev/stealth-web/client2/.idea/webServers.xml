@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="WebServers">
+    <option name="servers">
+      <webServer id="a5331235-c87e-4769-956b-e905a3885dda" name="ftp://svelte-responsive-images.nallus.com" url="https://svelte-responsive-images.nallus.com">
+        <fileTransfer host="svelte-responsive-images.nallus.com" port="21">
+          <advancedOptions>
+            <advancedOptions dataProtectionLevel="Private" maxConnections="20" passiveMode="true" shareSSLContext="true" />
+          </advancedOptions>
+        </fileTransfer>
+      </webServer>
+    </option>
+  </component>
+</project>

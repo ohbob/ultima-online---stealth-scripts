@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="en">
+	<head>
+
+		<meta charset="utf-8" />
+		<!--		<link rel="icon" href="assets/favicon.ico" />-->
+		<meta name="viewport" content="width=device-width, initial-scale=1" />
+		<title>Stealth web client</title>
+		
+
+		
+
+		<link rel="modulepreload" href="/./_app/start-a81726f1.js">
+		<link rel="modulepreload" href="/./_app/chunks/vendor-1a343f14.js">
+		<link rel="modulepreload" href="/./_app/pages/__layout.svelte-9fea9cec.js">
+		<link rel="modulepreload" href="/./_app/pages/index.svelte-23215ff4.js">
+		<link rel="stylesheet" href="/./_app/assets/start-0826e215.css">
+		<link rel="stylesheet" href="/./_app/assets/pages/__layout.svelte-e6dfdda8.css">
+
+		<script type="module">
+			import { start } from "/./_app/start-a81726f1.js";
+			start({
+				target: document.body,
+				paths: {"base":"","assets":"/."},
+				session: {},
+				host: location.host,
+				route: true,
+				spa: false,
+				trailing_slash: "never",
+				hydrate: {
+					status: 200,
+					error: null,
+					nodes: [
+						import("/./_app/pages/__layout.svelte-9fea9cec.js"),
+						import("/./_app/pages/index.svelte-23215ff4.js")
+					],
+					page: {
+						host: location.host, // TODO this is redundant
+						path: "/",
+						query: new URLSearchParams(""),
+						params: {}
+					}
+				}
+			});
+		</script>
+	</head>
+<!--	<body class="font-sans antialiased">-->
+	<body class="bg-gray-50">
+		<div id="svelte">
+
+
+<section>
+
+        Connecting..
+
+</section>
+
+
+
+	
+</div>
+	</body>
+</html>
+
+
