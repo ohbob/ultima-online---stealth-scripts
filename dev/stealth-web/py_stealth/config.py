@@ -1,0 +1,12 @@
+﻿
+STEALTH_CODEC = 'UTF_16LE'
+SCRIPT_CODEC = 'UTF8'  # your files encoding. py2 only
+
+HOST = 'localhost'
+PORT = 47602
+SOCK_TIMEOUT = 10
+MSG_TIMEOUT = 10
+GET_PORT_ATTEMPT_COUNT = 3
+
+DEBUG = False
+ERROR_FILTER = True
