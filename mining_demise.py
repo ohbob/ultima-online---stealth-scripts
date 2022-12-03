@@ -1,4 +1,4 @@
-#======================================================================
+# ======================================================================
 # Script Name: Dirty Miner
 # Author: CAMOTbIK
 # Version: 0.3 Beta
@@ -8,7 +8,7 @@
 # Public Release: 2011/11/30
 # Global Variables Used: None
 # Purpose: To mine.
-#======================================================================
+# ======================================================================
 
 from datetime import datetime
 import time
@@ -38,6 +38,10 @@ tinker_menu_section = 8  # section tools
 tinkermenu_tinkertools = 23  # tinker tools selection
 tinkermenu_shovel = 72  # #shovel tools selection
 scanRadius = 5
+
+trees = [3274, 3275, 3277, 3280, 3283, 3287, 3286, 3288, 3290, 3293, 3296, 3320, 3323, 3326, 3329, 3393, 3394, 3395,
+         3396, 3415, 3416, 3418, 3419, 3438, 3439, 3440, 3441, 3442, 3460, 3461, 3462, 3476, 3478, 3480, 3482, 3484,
+         3492, 3496]
 
 caves = [1339, 1340, 1341, 1342, 1343, 1344, 1345, 1346, 1347, 1348, 1349, 1350, 1351, 1352,
          1353, 1354, 1355, 1356, 1357, 1358, 1359, 1361, 1362, 1363, 1386
@@ -69,8 +73,7 @@ rocks = [0x453B, 0x453C, 0x453D, 0x453E, 0x453F, 0x4540, 0x4541, 0x4542, 0x4543,
 
 def debug(message: str):
     now = datetime.now()
-    time = f"{now.hour}:{now.minute}:{now.second} _ "
-    print(f'{time}{message}')
+    print(f'{now.hour}:{now.minute}:{now.second} _ {message}')
     ClientPrintEx(Self(), 66, 1, message)
 
 
@@ -93,7 +96,7 @@ def runebook(runebook_name: str, travel_method: list[int], rune_number: int) -> 
             return False
 
         if find_and_use_runebook_by_name(runebook_name):
-            # Runebooks on Demise don't show all text, just charges count so we focus on 20
+            # Runebooks on Demise don't show all text, it shows only charge count, so we focus on 20 (in my case)
             if text_in_gump('20', travel_method[rune_number]):
                 Wait(2000)  # just to not use items too fast
     return True
@@ -254,9 +257,9 @@ def get_tiles(radius: int, tiles: list[int]) -> list[tuple[int, int, int, int]]:
     """
     x, y = GetX(Self()), GetY(Self())
     tilesxy = []
-    for currenttile in tiles:
-        tilesxy += GetLandTilesArray(x - radius, y - radius, x + radius, y + radius, WorldNum(), currenttile)
-        tilesxy += GetStaticTilesArray(x - radius, y - radius, x + radius, y + radius, WorldNum(), currenttile)
+    for tile in tiles:
+        tilesxy += GetLandTilesArray(x - radius, y - radius, x + radius, y + radius, WorldNum(), tile)
+        tilesxy += GetStaticTilesArray(x - radius, y - radius, x + radius, y + radius, WorldNum(), tile)
     return tilesxy
 
 
@@ -313,7 +316,7 @@ def get_items(type, minamount, amount, storage, itemstring=""):
             exit()
 
 
-def tinkering(item, amount, button, name=""):
+def tinkering(item: int, amount: int, button: int, name: str = ""):
     if amount > Count(item):
         while amount > Count(item):
             debug(f"Crafting -> {name} {Count(item)} / {amount}")
@@ -325,8 +328,8 @@ def tinkering(item, amount, button, name=""):
         debug(f"Crafting -> {name} {Count(item)} / {amount}")
 
 
-def check(a, message):
-    if a:
+def check(condition, message):
+    if condition:
         print(f"PASSED => {message} ")
     else:
         print(f"FAILED => {message} ")
@@ -349,7 +352,7 @@ def diag():
     print("==============")
     debug("STARTING")
     print("==============")
-    # if disconnected reconnect
+
 
 # Mainloop
 diag()  # Check if all prerequisites are met
