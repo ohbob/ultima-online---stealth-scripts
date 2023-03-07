@@ -14,6 +14,7 @@ while True:
         Connect()
 
     while Connected() and not Dead():
+        Wait(50)
         for itemType in throw:
             MoveItems(Backpack(), itemType, 0xFFFF, trash, 0, 0, 0, 500, 0)
         for itemType in keep:
