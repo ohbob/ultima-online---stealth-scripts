@@ -9,8 +9,8 @@ class Discord:
     def __init__(self, webhook: str, botname: str = "April O'Neil",
                  avatarurl: str = "https://i.pinimg.com/originals/87/67/11/876711e56a0ef942cbb2f15844235f2e.jpg"):
         self.webhook = webhook
-        if not webhook.startswith("https://discord.com/api/webhooks/"):
-            raise RuntimeError("Your webhook should start with https://discord.com/api/webhooks/")
+        if not webhook.startswith("https://discordapp.com/api/webhooks/"):
+            raise RuntimeError("Your webhook should start with https://discordapp.com/api/webhooks/")
         self.botname = botname
         self.avatar = avatarurl
 
