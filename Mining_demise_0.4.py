@@ -554,12 +554,6 @@ def perform_diagnostic_checks():
 perform_diagnostic_checks()  # Check if all prerequisites are met
 oreBooks = find_and_count_runebook_by_name(oreBookName)
 homeBooks = find_and_count_runebook_by_name(homeBookName)
-# while True:
-#     for resourceBook in oreBooks:
-#         for runeNumber in range(1, 16):  # runebook has 16 runes
-#             runebook(resourceBook, travelmethod, runeNumber)
-#             mine(sort_trees(get_tiles(scanRadius, caves)), resourceBook, runeNumber, 5)
-
 
 while True:
     visited_waypoints = []
