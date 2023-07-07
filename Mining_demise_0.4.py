@@ -509,10 +509,7 @@ def tinkering(item_type: int, target_amount: int, crafting_button: int, item_nam
     # Continue crafting until the desired amount is reached
     while Count(item_type) < target_amount:
         debug(f"Crafting -> {item_name} {Count(item_type)} / {target_amount}")
-        if not get_items(iron, 10, 100, storage, "Iron"):
-            print("Not enough resources, quiting")
-            Disconnect()
-            exit()
+        get_items(iron, 10, 100, storage, "Iron")
         craft_item()
 
     debug(f"Crafting -> {item_name} {Count(item_type)} / {target_amount}")
