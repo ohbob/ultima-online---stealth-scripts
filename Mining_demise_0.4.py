@@ -101,7 +101,6 @@ def print_ore_counts():
           f"Mining pace: {elapsed_time_readable}")
     for ore, info in ore_counts.items():
         if ore != "start_time":
-            # print(f"{ore}: {info['amount']}")
             total += info["amount"]
             ores_per_hour = info["amount"] / (elapsed_time / 3600)
             print(f"{ore} {info['amount']} / ph: {int(ores_per_hour)}")
