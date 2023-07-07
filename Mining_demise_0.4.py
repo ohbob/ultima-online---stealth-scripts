@@ -253,7 +253,7 @@ def text_in_gump(text: str = "None", buttonid: int = None, timeout: int = 90) ->
     return found
 
 
-def find_and_count_runebook_by_name(name: str) -> list:
+def find_runebooks_by_name(name: str) -> list:
     """
     Find and count the runebooks by a given name in the Backpack.
 
@@ -551,8 +551,8 @@ def perform_diagnostic_checks():
 
 # Mainloop
 perform_diagnostic_checks()  # Check if all prerequisites are met
-oreBooks = find_and_count_runebook_by_name(oreBookName)
-homeBooks = find_and_count_runebook_by_name(homeBookName)
+oreBooks = find_runebooks_by_name(oreBookName)
+homeBooks = find_runebooks_by_name(homeBookName)
 
 while True:
     visited_waypoints = []
