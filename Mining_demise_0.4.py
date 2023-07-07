@@ -12,7 +12,6 @@
 from py_stealth import *
 import time
 import datetime
-from datetime import datetime
 from typing import List, Any
 
 
@@ -91,7 +90,6 @@ def update_ore_counts(item):
 
 
 def print_ore_counts():
-    import datetime
     """
     This function prints the counts of each ore type and the ores per hour.
     """
