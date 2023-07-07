@@ -535,8 +535,8 @@ def perform_diagnostic_checks():
         UseObject(Backpack())
         Wait(1000)
 
-        check(len(find_and_count_runebook_by_name(oreBookName)) > 0, "ORE BOOK NAME FOUND")
-        check(len(find_and_count_runebook_by_name(homeBookName)) > 0, "HOME BOOK NAME FOUND")
+        check(len(find_runebooks_by_name(oreBookName)) > 0, "ORE BOOK NAME FOUND")
+        check(len(find_runebooks_by_name(homeBookName)) > 0, "HOME BOOK NAME FOUND")
         check(Count(tinkerTool) > 0, "TOOLS TINKER FOUND")
         check(Count(shovel) > 0, "TOOLS SHOVEL FOUND")
 
