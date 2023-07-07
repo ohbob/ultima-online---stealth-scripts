@@ -184,7 +184,7 @@ def runebook(runebookID: str, travel_method: str, rune_number: int) -> bool:
                 return
             Wait(50)  # pause for a short time to prevent high CPU usage
 
-    max_retries = 10
+    max_retries = 20
     x, y = getxy()
 
     debug(f"Traveling {runebookID} / {rune_number}")
