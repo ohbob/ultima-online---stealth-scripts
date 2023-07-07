@@ -353,7 +353,7 @@ def mine(_tile_list, _resourceBook, _runeNumber, min_waypoint_distance=0):
                 if not TargetPresent():
                     break
 
-                start_time = datetime.now()
+                start_time = datetime.datetime.now()
 
                 if cave_floor_min <= tile <= cave_floor_max:
                     TargetToTile(tile, x, y, z)
@@ -364,7 +364,7 @@ def mine(_tile_list, _resourceBook, _runeNumber, min_waypoint_distance=0):
                 if not WaitJournalLine(start_time, message_all, 2000):
                     break
 
-                if InJournalBetweenTimes(message_end, start_time, datetime.now()) > 0:
+                if InJournalBetweenTimes(message_end, start_time, datetime.datetime.now()) > 0:
                     minespot = False
                     Wait(500)
 
