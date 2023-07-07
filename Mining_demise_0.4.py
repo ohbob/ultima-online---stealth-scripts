@@ -11,8 +11,9 @@
 # ======================================================================
 from py_stealth import *
 import time
+import datetime
 from typing import List, Any
-from datetime import datetime
+
 
 scanRadius = 10  # how many tiles in radius to scan for resources
 min_waypoint_distance = 3  # minimum distance from waypoint
@@ -131,8 +132,8 @@ def check(condition: bool, message: str) -> None:
 
 
 def debug(message: str):
-    now = datetime.now()
-    print(f'{now.hour}:{now.minute}:{now.second} _ {message}')
+    current_datetime = datetime.datetime.now()
+    print(current_datetime.strftime('%H:%M:%S'), message)
     ClientPrintEx(Self(), 66, 1, message)
 
 
