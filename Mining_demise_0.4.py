@@ -23,7 +23,7 @@ oreBookName = "Ore"
 homeBookName = "Home"
 homeNumber = 1
 
-discord_webhook = "https://discord.com/api/webhooks/88888888/9a8sdkajsdkj1k2jd918dh1kj2hdk1jhd"
+discord_webhook = ""
 
 
 tinker_menu_section = 8  # section tools
