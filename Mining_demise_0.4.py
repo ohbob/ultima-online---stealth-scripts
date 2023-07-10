@@ -9,11 +9,12 @@
 # Global Variables Used: None
 # Purpose: To mine.
 # ======================================================================
-from py_stealth import *
 import time
 import datetime
+import json
 from typing import List, Any
-
+from urllib.request import Request, urlopen
+from py_stealth import *
 
 scanRadius = 10  # how many tiles in radius to scan for resources
 min_waypoint_distance = 3  # minimum distance from waypoint
@@ -21,6 +22,9 @@ travelmethod = "magery"  # "magery", "chiva", "charges", "gate"
 oreBookName = "Ore"
 homeBookName = "Home"
 homeNumber = 1
+
+discord_webhook = "https://discord.com/api/webhooks/88888888/9a8sdkajsdkj1k2jd918dh1kj2hdk1jhd"
+
 
 tinker_menu_section = 8  # section tools
 tinkermenu_tinkertools = 23  # tinker tools selection
@@ -89,27 +93,44 @@ def update_ore_counts(item):
             break
 
 
-def print_ore_counts():
+def calculate_ore_counts():
     """
-    This function prints the counts of each ore type and the ores per hour.
+    This function returns a string with the counts of each ore type and the ores per hour.
     """
 
     total = 0
     elapsed_time = time.time() - ore_counts["start_time"]
     elapsed_time_readable = str(datetime.timedelta(seconds=int(elapsed_time)))
-    print("-----------------------\n"
-          f"Mining pace: {elapsed_time_readable}")
+    report = (f"-----------------------\n"
+              f"Mining pace: {elapsed_time_readable}\n")
     for ore, info in ore_counts.items():
         if ore != "start_time":
             total += info["amount"]
             ores_per_hour = info["amount"] / (elapsed_time / 3600)
-            print(f"{ore} {info['amount']} / ph: {int(ores_per_hour)}")
+            report += f"{ore}: {info['amount']} / ph: {int(ores_per_hour)}\n"
     total_ores_per_hour = total / (elapsed_time / 3600)
-    print(f"Total ores per hour: {int(total_ores_per_hour)}"
-          f"\n-----------------------\n")
+    report += (f"Total ores per hour: {int(total_ores_per_hour)}\n"
+               f"-----------------------\n")
+    return report
 
 
 # Helper functions
+
+
+class Discord:
+    def __init__(self, webhook: str, botname: str = "April O'Neil",
+                 avatar: str = "https://i.pinimg.com/originals/87/67/11/876711e56a0ef942cbb2f15844235f2e.jpg"):
+        self.webhook, self.botname, self.avatar = webhook, botname, avatar
+        if not webhook.startswith("https://discord.com/api/webhooks/"):
+            raise ValueError("Invalid webhook URL")
+
+    def send_message(self, message: str):
+        data = json.dumps({"username": self.botname, "avatar_url": self.avatar, "content": message}).encode('utf-8')
+        req = Request(self.webhook, data, headers={'Content-Type': 'application/json',
+                                                   'User-Agent': 'Mozilla/5.0 (X11; U; Linux i686) Gecko/20071127 Firefox/2.0.0.11'})
+        urlopen(req).read()
+
+
 def check(condition: bool, message: str) -> None:
     """
     Check if a condition is met and print the appropriate message.
@@ -550,6 +571,7 @@ def perform_diagnostic_checks():
 
 
 # Mainloop
+discord = Discord(discord_webhook)
 perform_diagnostic_checks()  # Check if all prerequisites are met
 oreBooks = find_runebooks_by_name(oreBookName)
 homeBooks = find_runebooks_by_name(homeBookName)
@@ -566,6 +588,10 @@ while True:
                 runebook(homeBooks[0], travelmethod, homeNumber)
                 unload()
                 upload()
-                print_ore_counts()
+                stats = calculate_ore_counts()
+                if discord_webhook.startswith("https://discord.com"):
+                    discord.send_message(stats)
+                else:
+                    print(stats)
             else:
                 runeNumber += 1  # Only move to the next rune if mining was successful
