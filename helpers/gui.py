@@ -38,7 +38,7 @@ def create_vars(labels, variables, buttons):
     global toggle_states, label_to_variable, root, status_label, timer_label
 
     root = tk.Tk()
-    root.title("Toggle Functions")
+    root.title("Camo gui builder")
     root.geometry("200x400")  # Set default size
 
     create_start_stop_row()  # Create Start/Stop button row
