@@ -2,7 +2,7 @@ import tkinter as tk
 import threading
 import time
 import configparser
-import atexit
+# import atexit
 import os
 import sys
 from tkinter import ttk
@@ -22,81 +22,6 @@ start_time = None
 config = configparser.ConfigParser()
 config_filename = f'config_{os.path.splitext(os.path.basename(sys.argv[0]))[0]}.ini'
 config.read(config_filename)
-
-
-def create_vars(labels, variables, buttons):
-    global toggle_states, label_to_variable, root, status_label, timer_label
-
-    root = tk.Tk()
-    root.title("Toggle Functions")
-    root.geometry("200x400")  # Set default size
-
-    create_start_stop_row()  # Create Start/Stop button row
-
-    # VARIABLES ------------------
-    # Create the variable labels
-    variable_frame = tk.Frame(root)
-    variable_frame.pack(side=tk.TOP, fill=tk.X)
-
-    for var_name, var_value in variables:
-        label = tk.Label(variable_frame, text=f"{var_name}: {var_value}", anchor="w", padx=8, pady=5)
-        label.pack(side=tk.LEFT, fill=tk.X, expand=True)
-
-        variable_labels[var_name] = label
-    # END VARIABLES --------------
-
-    # # SEPARATOR ------------------
-    # separator = ttk.Separator(root, orient='horizontal')
-    # separator.pack(fill=tk.X, pady=5)
-    # # END SEPARATOR --------------
-
-    # TOGGLE LABELS -------------
-    label_to_variable = {label: label.lower().replace(" ", "") for label in labels}
-
-    toggle_states = {label: tk.BooleanVar(value=config.getboolean('Toggles', variable, fallback=False))
-                     for label, variable in label_to_variable.items()}
-
-    toggle_frame = tk.Frame(root)
-    toggle_frame.pack(side=tk.TOP, fill=tk.X)
-
-    for i, label in enumerate(toggle_states.keys()):
-        if i % 2 == 0:
-            row_frame = tk.Frame(toggle_frame)
-            row_frame.pack(fill=tk.X)
-
-        toggle = tk.Checkbutton(row_frame, text=label, variable=toggle_states[label],
-                                anchor="w", padx=8, pady=5, command=lambda l=label: toggle_function(l))
-        toggle.pack(side=tk.LEFT)
-    # END TOGGLE LABELS ----------
-
-    # BUTTONS --------------------
-    # Create the buttons
-    button_frame = tk.Frame(root)
-    button_frame.pack(side=tk.TOP, fill=tk.X)
-
-    for i in range(0, len(buttons), 2):
-        row_frame = tk.Frame(button_frame)
-        row_frame.pack(fill=tk.X)
-
-        for button_text, button_callback in buttons[i:i + 2]:
-            button = tk.Button(row_frame, text=button_text, command=button_callback, padx=8, pady=5)
-            button.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=2, pady=2)
-    # END BUTTONS ----------------
-
-    # TIMER ---------------------
-    timer_label = tk.Label(root, text="", anchor="w", padx=8, pady=5)
-    timer_label.pack(side=tk.TOP, fill=tk.X)
-    # END TIMER -----------------
-
-    # STATUS --------------------
-    status_label = tk.Label(root, text="Status: ", anchor="w", padx=8, pady=5)
-    status_label.pack(side=tk.TOP, fill=tk.X)
-    # END STATUS ----------------
-
-    update_status()  # Start status update loop
-
-    root.mainloop()
-
 
 
 def update_variable_value(var_name, var_value):
@@ -148,9 +73,10 @@ def create_vars(labels, variables, buttons):
             row_frame = tk.Frame(toggle_frame)
             row_frame.pack(fill=tk.X)
 
-        toggle = tk.Checkbutton(row_frame, text=label, variable=toggle_states[label],
-                                anchor="w", padx=8, pady=5, command=lambda l=label: toggle_function(l))
+        toggle = tk.Checkbutton(row_frame, text=label, variable=toggle_states[label], anchor="w", padx=8, pady=5)
+        toggle.config(command=lambda l=label: toggle_function(l))
         toggle.pack(side=tk.LEFT, fill=tk.X, expand=True)
+
     # END TOGGLE LABELS ----------
 
     # SEPARATOR ------------------
@@ -183,9 +109,7 @@ def create_vars(labels, variables, buttons):
 
     update_status()  # Start status update loop
 
-    root.mainloop()
-
-
+    # root.mainloop()
 
 def save_config():
     config['Toggles'] = {variable: str(toggle_states[label].get()) for label, variable in label_to_variable.items()}
@@ -259,9 +183,11 @@ def format_time(seconds):
 
     return ', '.join(result)
 
+
 def update_variable_labels(variables):
     for var_name, var_value in variables:
         variable_labels[var_name].config(text=f"{var_name}: {var_value}")
+
 
 def start_toggles_loop(callback):
     if callback is not None:
@@ -270,6 +196,9 @@ def start_toggles_loop(callback):
 
     update_status()  # Start status update loop
 
+
+def create_gui(labels, variables, buttons, callback=None):
+    create_vars(labels, variables, buttons)  # Call the create_vars function to create GUI elements
 
 def run_gui():
     root.mainloop()
