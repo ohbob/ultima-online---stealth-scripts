@@ -34,12 +34,90 @@ variable_labels = {}
 variable_label_frames = {}
 
 
+# def create_vars(labels, variables, buttons):
+#     global toggle_states, label_to_variable, root, status_label, timer_label
+#
+#     root = tk.Tk()
+#     root.title("Camo gui builder")
+#     root.geometry("200x440")  # Set default size
+#
+#     create_start_stop_row()  # Create Start/Stop button row
+#
+#     # VARIABLES ------------------
+#     for var_name, var_value in variables:
+#         variable_frame = tk.Frame(root)
+#         variable_frame.pack(side=tk.TOP, fill=tk.X)
+#
+#         label = tk.Label(variable_frame, text=f"{var_name}: {var_value}", anchor="w", padx=4, pady=2)
+#         label.pack(side=tk.LEFT, fill=tk.X, expand=True)
+#
+#         variable_labels[var_name] = label
+#     # END VARIABLES --------------
+#
+#     # SEPARATOR ------------------
+#     separator = ttk.Separator(root, orient='horizontal')
+#     separator.pack(fill=tk.X, pady=5)
+#     # END SEPARATOR --------------
+#
+#     # TOGGLE LABELS -------------
+#     label_to_variable = {label: label.lower().replace(" ", "") for label in labels}
+#
+#     toggle_states = {label: tk.BooleanVar(value=config.getboolean('Toggles', variable, fallback=False))
+#                      for label, variable in label_to_variable.items()}
+#
+#     toggle_frame = tk.Frame(root)
+#     toggle_frame.pack(side=tk.TOP, fill=tk.X)
+#
+#     for i, label in enumerate(toggle_states.keys()):
+#         if i % 2 == 0:
+#             row_frame = tk.Frame(toggle_frame)
+#             row_frame.pack(fill=tk.X)
+#
+#         toggle = tk.Checkbutton(row_frame, text=label, variable=toggle_states[label], anchor="w", padx=8, pady=5)
+#         toggle.config(command=lambda l=label: toggle_function(l))
+#         toggle.pack(side=tk.LEFT, fill=tk.X, expand=True)
+#
+#     # END TOGGLE LABELS ----------
+#
+#     # SEPARATOR ------------------
+#     separator = ttk.Separator(root, orient='horizontal')
+#     separator.pack(fill=tk.X, pady=5)
+#     # END SEPARATOR --------------
+#
+#     # BUTTONS --------------------
+#     button_frame = tk.Frame(root)
+#     button_frame.pack(side=tk.TOP, fill=tk.X)
+#
+#     for i in range(0, len(buttons), 2):
+#         row_frame = tk.Frame(button_frame)
+#         row_frame.pack(fill=tk.X)
+#
+#         for button_text, button_callback in buttons[i:i + 2]:
+#             button = tk.Button(row_frame, text=button_text, command=button_callback, padx=8, pady=5)
+#             button.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=2, pady=2)
+#     # END BUTTONS ----------------
+#
+#     # TIMER ---------------------
+#     timer_label = tk.Label(root, text="", anchor="w", padx=8, pady=5)
+#     timer_label.pack(side=tk.TOP, fill=tk.X)
+#     # END TIMER -----------------
+#
+#     # STATUS --------------------
+#     status_label = tk.Label(root, text="Status: ", anchor="w", padx=8, pady=5)
+#     status_label.pack(side=tk.TOP, fill=tk.X)
+#     # END STATUS ----------------
+#
+#     update_status()  # Start status update loop
+#
+#     # root.mainloop()
+
+
 def create_vars(labels, variables, buttons):
     global toggle_states, label_to_variable, root, status_label, timer_label
 
     root = tk.Tk()
     root.title("Camo gui builder")
-    root.geometry("200x400")  # Set default size
+    root.geometry("250x440")  # Set default size
 
     create_start_stop_row()  # Create Start/Stop button row
 
@@ -48,7 +126,7 @@ def create_vars(labels, variables, buttons):
         variable_frame = tk.Frame(root)
         variable_frame.pack(side=tk.TOP, fill=tk.X)
 
-        label = tk.Label(variable_frame, text=f"{var_name}: {var_value}", anchor="w", padx=8, pady=5)
+        label = tk.Label(variable_frame, text=f"{var_name}: {var_value}", anchor="w", padx=4, pady=2)
         label.pack(side=tk.LEFT, fill=tk.X, expand=True)
 
         variable_labels[var_name] = label
@@ -69,14 +147,14 @@ def create_vars(labels, variables, buttons):
     toggle_frame.pack(side=tk.TOP, fill=tk.X)
 
     for i, label in enumerate(toggle_states.keys()):
-        if i % 2 == 0:
-            row_frame = tk.Frame(toggle_frame)
-            row_frame.pack(fill=tk.X)
+        row = i // 2
+        column = i % 2
 
-        toggle = tk.Checkbutton(row_frame, text=label, variable=toggle_states[label], anchor="w", padx=8, pady=5)
+        toggle = tk.Checkbutton(toggle_frame, text=label, variable=toggle_states[label], anchor="w", padx=8, pady=5)
         toggle.config(command=lambda l=label: toggle_function(l))
-        toggle.pack(side=tk.LEFT, fill=tk.X, expand=True)
+        toggle.grid(row=row, column=column, sticky=tk.W)
 
+        toggle_frame.grid_columnconfigure(column, weight=1)  # Makes the columns take up equal space
     # END TOGGLE LABELS ----------
 
     # SEPARATOR ------------------
@@ -88,13 +166,17 @@ def create_vars(labels, variables, buttons):
     button_frame = tk.Frame(root)
     button_frame.pack(side=tk.TOP, fill=tk.X)
 
+    max_button_width = max(len(text) for text, _ in buttons)
+
     for i in range(0, len(buttons), 2):
         row_frame = tk.Frame(button_frame)
         row_frame.pack(fill=tk.X)
 
-        for button_text, button_callback in buttons[i:i + 2]:
-            button = tk.Button(row_frame, text=button_text, command=button_callback, padx=8, pady=5)
+        for j, (button_text, button_callback) in enumerate(buttons[i:i + 2]):
+            button = tk.Button(row_frame, text=button_text, command=button_callback, padx=8, pady=5, width=max_button_width)
             button.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=2, pady=2)
+
+            row_frame.grid_columnconfigure(j, weight=1)  # Makes the columns take up equal space
     # END BUTTONS ----------------
 
     # TIMER ---------------------
@@ -109,7 +191,6 @@ def create_vars(labels, variables, buttons):
 
     update_status()  # Start status update loop
 
-    # root.mainloop()
 
 def save_config():
     config['Toggles'] = {variable: str(toggle_states[label].get()) for label, variable in label_to_variable.items()}
