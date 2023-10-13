@@ -1,0 +1,42 @@
+import discord
+from discord.ext import commands
+from py_stealth import *
+import asyncio
+
+intents = discord.Intents.default()
+intents.message_content = True
+bot = commands.Bot(command_prefix='>', intents=intents)
+
+CHANNEL_ID = None  # Initialize as None
+
+@bot.command()
+async def uo(ctx, *args):
+    global CHANNEL_ID
+    CHANNEL_ID = ctx.channel.id  # Store the channel ID from the ctx
+    message = ' '.join(map(str, args))
+    UOSay(message)
+    # await ctx.send(message)
+
+async def check_journal():
+    await bot.wait_until_ready()
+    index = HighJournal()
+    while not bot.is_closed():
+        new_index = HighJournal()
+        if new_index > index:
+            new_lines = []
+            for i in range(index + 1, new_index + 1):
+                line = Journal(i)
+                new_lines.append(f"sender ID: {LineID()} - {line}")
+            combined_message = "```\n" + "\n".join(new_lines) + "\n```"
+            channel = bot.get_channel(CHANNEL_ID)
+            if channel:
+                await channel.send(combined_message)
+            index = new_index
+        await asyncio.sleep(2)  # Check every 2 seconds
+
+@bot.event
+async def on_ready():
+    print(f"Bot is ready!")
+    bot.loop.create_task(check_journal())  # Start the check_journal task when the bot is ready
+
+bot.run('yourTOKEN123')
