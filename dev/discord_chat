@@ -26,10 +26,12 @@ async def check_journal():
             new_lines = []
             for i in range(index + 1, new_index + 1):
                 line = Journal(i)
-                new_lines.append(f"sender ID: {LineID()} - {line}")
+                if LineID() != Self():
+                    if "You see: " not in line:
+                        new_lines.append(f"sender ID: {LineID()} - {line}")
             combined_message = "```\n" + "\n".join(new_lines) + "\n```"
             channel = bot.get_channel(CHANNEL_ID)
-            if channel:
+            if channel and len(new_lines) > 0:
                 await channel.send(combined_message)
             index = new_index
         await asyncio.sleep(2)  # Check every 2 seconds
@@ -38,5 +40,6 @@ async def check_journal():
 async def on_ready():
     print(f"Bot is ready!")
     bot.loop.create_task(check_journal())  # Start the check_journal task when the bot is ready
+
 
 bot.run('yourTOKEN123')
