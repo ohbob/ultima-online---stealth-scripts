@@ -12,14 +12,13 @@
 import time
 import datetime
 import json
-from typing import List, Any
 from urllib.request import Request, urlopen
 from py_stealth import *
 
 scanRadius = 10  # how many tiles in radius to scan for resources
 min_waypoint_distance = 3  # minimum distance from waypoint
 travelmethod = "magery"  # "magery", "chiva", "charges", "gate"
-oreBookName = "Ore" # Book should be named Ore1, Ore2
+oreBookName = "Ore"      # Books should be called Ore1, Ore2, Ore3
 homeBookName = "Home"
 homeNumber = 1
 
@@ -121,8 +120,8 @@ class Discord:
     def __init__(self, webhook: str, botname: str = "April O'Neil",
                  avatar: str = "https://i.pinimg.com/originals/87/67/11/876711e56a0ef942cbb2f15844235f2e.jpg"):
         self.webhook, self.botname, self.avatar = webhook, botname, avatar
-        #if not webhook.startswith("https://discord.com/api/webhooks/"):
-        #    raise ValueError("Invalid webhook URL")
+        # if not webhook.startswith("https://discord.com/api/webhooks/"):
+        #     raise ValueError("Invalid webhook URL")
 
     def send_message(self, message: str):
         data = json.dumps({"username": self.botname, "avatar_url": self.avatar, "content": message}).encode('utf-8')
@@ -394,7 +393,7 @@ def mine(_tile_list, _resourceBook, _runeNumber, min_waypoint_distance=0):
     return True  # Indicate that mining was successful and no unloading is needed
 
 
-def get_tiles(radius: int, tiles: list[int]) -> list[tuple[int, int, int, int]]:
+def get_tiles(radius: int, tiles):
     """
     Returns list of tiles found within the specified radius using GetLandTilesArray
     and GetStaticTilesArray functions for improved shard compatibility.
