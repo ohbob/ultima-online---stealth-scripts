@@ -19,11 +19,9 @@ scanRadius = 10  # how many tiles in radius to scan for resources
 min_waypoint_distance = 3  # minimum distance from waypoint
 travelmethod = "magery"  # "magery", "chiva", "charges", "gate"
 oreBookName = "Ore"      # Books should be called Ore1, Ore2, Ore3
-homeBookName = "Home"
+homeBookName = "Home"    # Book should be called Home
 homeNumber = 1
-
 discord_webhook = ""
-
 
 tinker_menu_section = 8  # section tools
 tinkermenu_tinkertools = 23  # tinker tools selection
@@ -418,41 +416,69 @@ def get_tiles(radius: int, tiles):
 
     return found_tiles
 
+def adapted_tsp_algorithm(dataset, tsp_algorithm):
+    # Create a mapping from (x, y) to the full data tuple
+    xy_to_full_data = {(x, y): full_data for full_data in dataset for _, x, y, _ in [full_data]}
 
-def sort_trees(trees):
-    """
-    Sorts trees based on their distance from the player's position.
+    # Extract x and y coordinates from dataset
+    points = [(x, y) for _, x, y, _ in dataset]
 
-    Args:
-        trees (List[Tuple[int, int, int, int]]): List of trees represented by tuples (tile, x, y, z).
+    # Start timing
+    start_time = time.perf_counter()
 
-    Returns:
-        List[Tuple[int, int, int, int]]: List of sorted trees.
-    """
+    # Calculate the route using the given TSP algorithm
+    path, length = calculate_route(points, tsp_algorithm)
 
+    # Stop timing
+    elapsed_time = time.perf_counter() - start_time
+
+    # Map the sorted (x, y) path back to the original dataset format
+    adapted_path = [xy_to_full_data[(x, y)] for x, y in path]
+
+    return adapted_path, int(length), elapsed_time
+
+def two_opt_tsp(points, dist_matrix):
+    def two_opt_swap(route, i, k):
+        """Perform a 2-opt swap by reversing the route segment between i and k."""
+        return route[:i] + route[i:k + 1][::-1] + route[k + 1:]
+
+    num_points = len(points)
+    best_route = list(range(num_points))
+    improved = True
+
+    while improved:
+        improved = False
+        best_distance = sum(dist_matrix[best_route[i - 1]][best_route[i]] for i in range(1, num_points))
+        for i in range(1, num_points - 1):
+            for k in range(i + 1, num_points):
+                new_route = two_opt_swap(best_route, i, k)
+                new_distance = sum(dist_matrix[new_route[j - 1]][new_route[j]] for j in range(1, num_points))
+                if new_distance < best_distance:
+                    best_route = new_route
+                    best_distance = new_distance
+                    improved = True
+
+    # Do not loop back to the start
+    return [points[i] for i in best_route], best_distance
+
+
+def calculate_route(points, tsp_algorithm):
     def calculate_distance(point1, point2):
-        return Dist(point1[1], point1[2], point2[1], point2[2])
+        """Calculate the Euclidean distance between two points."""
+        return ((point1[0] - point2[0]) ** 2 + (point1[1] - point2[1]) ** 2) ** 0.5
 
-    def get_key_by_distance(tree):
-        return calculate_distance(tree, player_position)
+    def calculate_all_distances():
+        """Precompute distances between all pairs of points."""
+        num_points = len(points)
+        dist_matrix = [[0] * num_points for _ in range(num_points)]
+        for i in range(num_points):
+            for j in range(i + 1, num_points):
+                dist = calculate_distance(points[i], points[j])
+                dist_matrix[i][j] = dist_matrix[j][i] = dist
+        return dist_matrix
 
-    player_position = (0, GetX(Self()), GetX(Self()))
-    trees_by_distance = {}
-
-    # Group trees by rounded distance
-    for tree in trees:
-        distance = calculate_distance(tree, player_position)
-        distance_key = distance - 1 if distance % 2 == 0 else distance
-        trees_by_distance.setdefault(distance_key, []).append(tree)
-
-    # Sort trees within groups
-    ordered_trees_list = []
-    for _, group in trees_by_distance.items():
-        group.sort(key=get_key_by_distance)
-        ordered_trees_list.extend(group)
-
-    return ordered_trees_list
-
+    dist_matrix = calculate_all_distances()
+    return tsp_algorithm(points, dist_matrix)
 
 def get_items(item_type, min_amount, amount, storage, item_name=""):
     """
@@ -581,7 +607,10 @@ while True:
         runeNumber = 1
         while runeNumber <= 16:  # runebook has 16 runes
             runebook(resourceBook, travelmethod, runeNumber)
-            mining_successful = mine(sort_trees(get_tiles(scanRadius, caves)), resourceBook, runeNumber,
+
+            dataset, dataset_steps, dataset_time = adapted_tsp_algorithm(get_tiles(scanRadius, caves), two_opt_tsp)
+
+            mining_successful = mine(dataset, resourceBook, runeNumber,
                                      min_waypoint_distance)
             if not mining_successful:
                 runebook(homeBooks[0], travelmethod, homeNumber)
