@@ -117,9 +117,10 @@ def find_bod_book(name: str) -> Optional[ItemID]:
     FindTypeEx(0x2259, 0xFFFF, Backpack())
     for item in GetFoundList():
         tool = GetTooltip(item)
-        item_name = tool.split("Name: ")[1]
-        if name == item_name:
-            return item
+        if "Name: " in tool:
+            item_name = tool.split("Name: ")[1]
+            if name == item_name:
+                return item
     print(f"No BOD book found with the name {name}")
     return None
 
@@ -127,7 +128,9 @@ def find_bod_book(name: str) -> Optional[ItemID]:
 def bod_book_deeds_count(bookid: ItemID) -> int:
     CheckLag(60000)
     tool = GetTooltip(bookid)
-    count = int(tool.split("Deeds in book: ")[1].split("|")[0])
+    count = 0
+    if "Deeds in book: " in tool:
+        count = int(tool.split("Deeds in book: ")[1].split("|")[0])
     return count
 
 
