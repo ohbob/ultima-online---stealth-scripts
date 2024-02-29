@@ -118,8 +118,8 @@ def find_bod_book(name: str) -> Optional[ItemID]:
     for item in GetFoundList():
         tool = GetTooltip(item)
         if "Name: " in tool:
-            item_name = tool.split("Name: ")[1]
-            if name == item_name:
+            item_name = tool.split("Name: ")
+            if len(item_name) > 1 and name == item_name[1]:
                 return item
     print(f"No BOD book found with the name {name}")
     return None
