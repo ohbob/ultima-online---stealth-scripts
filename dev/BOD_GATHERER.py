@@ -116,11 +116,16 @@ def find_bod_book(name: str) -> Optional[ItemID]:
     CheckLag(60000)
     FindTypeEx(0x2259, 0xFFFF, Backpack())
     for item in GetFoundList():
-        tool = GetTooltip(item)
-        if "Name: " in tool:
-            item_name = tool.split("Name: ")
-            if len(item_name) > 1 and name == item_name[1]:
-                return item
+        try:
+            tool = GetTooltip(item)
+            if "Name: " in tool:
+                item_name = tool.split("Name: ")
+                # Ensure there is a name part after splitting and it matches the desired name
+                if len(item_name) > 1 and name == item_name[1]:
+                    return item
+        except Exception as e:
+            # Log or handle the error as needed
+            print(f"Error processing item {item}: {e}")
     print(f"No BOD book found with the name {name}")
     return None
 
@@ -130,9 +135,16 @@ def bod_book_deeds_count(bookid: ItemID) -> int:
     tool = GetTooltip(bookid)
     count = 0
     if "Deeds in book: " in tool:
-        count_str = tool.split("Deeds in book: ")[1].split("|")[0]
-        if count_str:
+        try:
+            # Attempt to extract and convert the count to an integer
+            count_str = tool.split("Deeds in book: ")[1].split("|")[0]
             count = int(count_str)
+        except ValueError:
+            # Handle the case where conversion to integer fails
+            print(f"Could not convert '{count_str}' to an integer.")
+        except Exception as e:
+            # Handle any other unexpected errors
+            print(f"Unexpected error: {e}")
     return count
 
 
