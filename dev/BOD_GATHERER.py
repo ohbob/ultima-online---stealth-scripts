@@ -155,9 +155,14 @@ def process_profiles(_profiles):
                 if profile.can_get_bod():
                     load_profile(profile)
                     mybook = find_bod_book(profile.bod_type.value['bod_book_name'])
-                    if mybook and bod_book_deeds_count(mybook) >= BOOK_LIMIT:
+                    # Check if mybook is not None before proceeding
+                    if mybook is None:
+                        print(f"Book not found for profile {profile.name}. Skipping...")
+                        continue  # Skip to the next profile if the book is not found
+
+                    if bod_book_deeds_count(mybook) >= BOOK_LIMIT:
                         profile.active = False
-                        continue
+                        continue  # Skip to the next profile if the book limit is reached
 
                     get_bod(profile)
 
