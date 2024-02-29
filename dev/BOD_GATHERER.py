@@ -130,7 +130,9 @@ def bod_book_deeds_count(bookid: ItemID) -> int:
     tool = GetTooltip(bookid)
     count = 0
     if "Deeds in book: " in tool:
-        count = int(tool.split("Deeds in book: ")[1].split("|")[0])
+        count_str = tool.split("Deeds in book: ")[1].split("|")[0]
+        if count_str:
+            count = int(count_str)
     return count
 
 
