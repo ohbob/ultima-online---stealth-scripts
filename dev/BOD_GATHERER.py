@@ -117,12 +117,13 @@ def find_bod_book(name: str) -> Optional[ItemID]:
     FindTypeEx(0x2259, 0xFFFF, Backpack())
     for item in GetFoundList():
         try:
-            tool = GetTooltip(item)
-            if "Name: " in tool:
-                item_name = tool.split("Name: ")
-                # Ensure there is a name part after splitting and it matches the desired name
-                if len(item_name) > 1 and name == item_name[1]:
-                    return item
+            for _ in range(3):  # Try to get the tooltip 3 times
+                tool = GetTooltip(item)
+                if "Name: " in tool:
+                    item_name = tool.split("Name: ")
+                    # Ensure there is a name part after splitting and it matches the desired name
+                    if len(item_name) > 0 and name == item_name[1]:
+                        return item
         except Exception as e:
             # Log or handle the error as needed
             print(f"Error processing item {item}: {e}")
