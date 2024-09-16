@@ -12,8 +12,8 @@ SKILL_SPELL_MAPPING = {
         
         {'max_skill': 89.0, 'spell': 'Blade Spirit', 'creature_type': 0x023E, 'wait_time': 1000},
         {'max_skill': 90.0, 'spell': 'Energy Vortex', 'creature_type': 0x00A4, 'wait_time': 2000},
-        {'max_skill': 100.0, 'spell': 'summon water elemental', 'creature_type': 0x0010, 'wait_time': 2500},
-        {'max_skill': 120.0, 'spell': 'summon fire elemental', 'creature_type': 0x000F, 'wait_time': 2500},
+        {'max_skill': 100.0, 'spell': 'summon water elemental', 'creature_type': 0x0010, 'wait_time': 3500},
+        {'max_skill': 120.0, 'spell': 'summon fire elemental', 'creature_type': 0x000F, 'wait_time': 3500},
     ]
 }
 
@@ -23,8 +23,7 @@ MESSAGES = {
     'discordance_fail': 'but fail',
     'discordance_far': 'That is too far away',
     'need_instrument': 'What instrument',
-    'dispel_success': 'The magic is dispelled',
-    'dispel_fail': 'The spell fizzles',
+    'spell_fail': 'The spell fizzles',
 }
 
 def debug(message, color):
@@ -42,8 +41,10 @@ def cast_summoned_creature():
         return False
 
     debug(f"Casting {spell_info['spell']}...", 22)
+    start_time = datetime.datetime.now()
     Cast(spell_info['spell'])
-    Wait(spell_info['wait_time'])
+    WaitJournalLine(start_time, MESSAGES['spell_fail'], spell_info['wait_time'])
+    # Wait(spell_info['wait_time'])
     WaitTargetObject(item_to_cast_to)
     # Wait(500)  # Reduced wait time after casting
     if FindTypesArrayEx([spell_info['creature_type']], [0xffff], [Ground()], False):
