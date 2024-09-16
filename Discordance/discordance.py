@@ -12,8 +12,8 @@ SKILL_SPELL_MAPPING = {
         
         {'max_skill': 89.0, 'spell': 'Blade Spirit', 'creature_type': 0x023E, 'wait_time': 1000},
         {'max_skill': 90.0, 'spell': 'Energy Vortex', 'creature_type': 0x00A4, 'wait_time': 2000},
-        {'max_skill': 100.0, 'spell': 'summon water elemental', 'creature_type': 0x0010, 'wait_time': 2000},
-        {'max_skill': 120.0, 'spell': 'summon fire elemental', 'creature_type': 0x000F, 'wait_time': 2000},
+        {'max_skill': 100.0, 'spell': 'summon water elemental', 'creature_type': 0x0010, 'wait_time': 2500},
+        {'max_skill': 120.0, 'spell': 'summon fire elemental', 'creature_type': 0x000F, 'wait_time': 2500},
     ]
 }
 
@@ -22,7 +22,7 @@ MESSAGES = {
     'discordance_already': 'is already',
     'discordance_fail': 'but fail',
     'discordance_far': 'That is too far away',
-    'need_instrument': 'instrument',
+    'need_instrument': 'What instrument',
     'dispel_success': 'The magic is dispelled',
     'dispel_fail': 'The spell fizzles',
 }
@@ -76,25 +76,24 @@ def use_discordance(target):
         UseSkill('Discordance')
         WaitForTarget(1000)
         
+        if InJournalBetweenTimes(MESSAGES['need_instrument'], start_time, datetime.datetime.now()) > 0:
+            debug('Need to target an instrument', 22)
+            instrument = FindType(instrument_type, Backpack())
+            if instrument == 0:
+                debug('No musical instrument found in backpack', 31)
+                return exit()
+            if TargetPresent():
+                TargetToObject(instrument)
+                WaitForTarget(1000)
+
         if TargetPresent():
             debug('Targeting creature for Discordance...', 22)
             TargetToObject(target)
             WaitJournalLine(start_time, f"{MESSAGES['discordance_success']}|{MESSAGES['discordance_already']}|{MESSAGES['discordance_fail']}|{MESSAGES['discordance_far']}|{MESSAGES['need_instrument']}", 5000)
             
-            if InJournalBetweenTimes(MESSAGES['need_instrument'], start_time, datetime.datetime.now()) > 0:
-                debug('Need to target an instrument', 22)
-                instrument = FindType(instrument_type, Backpack())
-                if instrument == 0:
-                    debug('No musical instrument found in backpack', 31)
-                    return exit()
+           
                 
-                WaitForTarget(1000)
-                if TargetPresent():
-                    TargetToObject(instrument)
-                    WaitForTarget(1000)
-                    if TargetPresent():
-                        TargetToObject(target)
-                        WaitJournalLine(start_time, f"{MESSAGES['discordance_success']}|{MESSAGES['discordance_already']}|{MESSAGES['discordance_fail']}|{MESSAGES['discordance_far']}", 5000)
+            WaitJournalLine(start_time, f"{MESSAGES['discordance_success']}|{MESSAGES['discordance_already']}|{MESSAGES['discordance_fail']}|{MESSAGES['discordance_far']}", 5000)
             
             if InJournalBetweenTimes(MESSAGES['discordance_success'], start_time, datetime.datetime.now()) > 0 or InJournalBetweenTimes(MESSAGES['discordance_already'], start_time, datetime.datetime.now()) > 0:
                 debug('Discordance successful or already applied', 25)
