@@ -1,10 +1,5 @@
 from py_stealth import *
 import datetime
-instrument_type = 0x0EB3
-item_to_cast_to = 0x417C76CF
-
-SetFindDistance(12)
-debugging = True
 
 
 SKILL_SPELL_MAPPING = {
@@ -12,7 +7,7 @@ SKILL_SPELL_MAPPING = {
         
         {'max_skill': 89.0, 'spell': 'Blade Spirit', 'creature_type': 0x023E, 'wait_time': 1000},
         {'max_skill': 90.0, 'spell': 'Energy Vortex', 'creature_type': 0x00A4, 'wait_time': 2000},
-        {'max_skill': 100.0, 'spell': 'summon water elemental', 'creature_type': 0x0010, 'wait_time': 3500},
+        {'max_skill': 110.0, 'spell': 'summon water elemental', 'creature_type': 0x0010, 'wait_time': 3500},
         {'max_skill': 120.0, 'spell': 'summon fire elemental', 'creature_type': 0x000F, 'wait_time': 3500},
     ]
 }
@@ -26,10 +21,16 @@ MESSAGES = {
     'spell_fail': 'The spell fizzles',
 }
 
+SetFindDistance(12)
+
+instrument_type = 0x0EB3
+item_to_cast_to = 0x417C76CF
+debugging = True
+
 def debug(message, color):
     if debugging:
         ClientPrintEx(Self(), color, 0, message)
-        AddToSystemJournal(message)
+        print(message)
 
 
 def cast_summoned_creature():
@@ -90,12 +91,7 @@ def use_discordance(target):
         if TargetPresent():
             debug('Targeting creature for Discordance...', 22)
             TargetToObject(target)
-            WaitJournalLine(start_time, f"{MESSAGES['discordance_success']}|{MESSAGES['discordance_already']}|{MESSAGES['discordance_fail']}|{MESSAGES['discordance_far']}|{MESSAGES['need_instrument']}", 5000)
-            
-           
-                
-            WaitJournalLine(start_time, f"{MESSAGES['discordance_success']}|{MESSAGES['discordance_already']}|{MESSAGES['discordance_fail']}|{MESSAGES['discordance_far']}", 5000)
-            
+            WaitJournalLine(start_time, f"{MESSAGES['discordance_success']}|{MESSAGES['discordance_already']}|{MESSAGES['discordance_fail']}|{MESSAGES['discordance_far']}|{MESSAGES['need_instrument']}", 7000)            
             if InJournalBetweenTimes(MESSAGES['discordance_success'], start_time, datetime.datetime.now()) > 0 or InJournalBetweenTimes(MESSAGES['discordance_already'], start_time, datetime.datetime.now()) > 0:
                 debug('Discordance successful or already applied', 25)
                 return True
@@ -116,8 +112,7 @@ def release_creature(target):
     creature_name = GetName(target)
     debug(f"Attempting to release {creature_name}...", 22)
     UOSay(f"{creature_name} release")
-    # Wait(500)  # Reduced wait time after release command
-    
+
     if not IsObjectExists(target):
         debug(f"Successfully released {creature_name}", 25)
         return True
@@ -129,7 +124,6 @@ def main():
     debug("Starting Summoned Creature, Discordance, and Release loop...", 90)
     
     while not Dead():
-        # Check mana and meditate if necessary
         if GetMana(Self()) < 40:
             meditate()
             continue
