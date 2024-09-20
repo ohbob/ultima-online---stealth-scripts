@@ -4,11 +4,17 @@ import datetime
 
 SKILL_SPELL_MAPPING = {
     'Magery': [
-        
         {'max_skill': 89.0, 'spell': 'Blade Spirit', 'creature_type': 0x023E, 'wait_time': 1000},
         {'max_skill': 90.0, 'spell': 'Energy Vortex', 'creature_type': 0x00A4, 'wait_time': 2000},
-        {'max_skill': 110.0, 'spell': 'summon water elemental', 'creature_type': 0x0010, 'wait_time': 3500},
-        {'max_skill': 120.0, 'spell': 'summon fire elemental', 'creature_type': 0x000F, 'wait_time': 3500},
+        {'max_skill': 94.1, 'spell': 'summon water elemental', 'creature_type': 0x0010, 'wait_time': 3500},
+        {'max_skill': 97.7, 'spell': 'animal', 'creature_type': 0x000F, 'wait_time': 3500},
+    ]
+}
+
+ANIMAL_MAPPING = {
+    'Discordance': [
+        {'max_skill' : 106.5, 'creature_type' : 0x0115},
+        {'max_skill' : 120, 'creature_type' : 0x000C},
     ]
 }
 
@@ -120,41 +126,75 @@ def release_creature(target):
         debug(f"Failed to release {creature_name}", 31)
         return False
 
+def find_creature_for_discordance():
+    discordance_skill = GetSkillValue('Discordance')
+    creature_info = next((info for info in ANIMAL_MAPPING['Discordance'] if discordance_skill < info['max_skill']), None)
+    
+    if not creature_info:
+        return None
+
+    FindType(creature_info['creature_type'], Ground())
+    return FindItem()
+
+def use_hiding():
+    while not Hidden():
+        debug("Using Hiding skill...", 22)
+        UseSkill('Hiding')
+        Wait(1000)  # Short wait to allow hiding to take effect
+
 def main():
-    debug("Starting Summoned Creature, Discordance, and Release loop...", 90)
+    debug("Starting Discordance training loop...", 90)
     
     while not Dead():
         if GetMana(Self()) < 40:
             meditate()
             continue
 
-        magery_skill = GetSkillValue('Magery')
-        spell_info = next((info for info in SKILL_SPELL_MAPPING['Magery'] if magery_skill < info['max_skill']), None)
+        discordance_skill = GetSkillValue('Discordance')
         
-        if not spell_info:
-            debug(f"No suitable spell found for Magery skill {magery_skill}", 31)
-            continue
-
-        FindType(spell_info['creature_type'], Ground())
-        summoned_creature = FindItem()
-        
-        if not summoned_creature:
-            debug(f"No {spell_info['spell']} found, attempting to cast...", 25)
-            success = cast_summoned_creature()
-            if not success:
-                debug(f"Failed to cast {spell_info['spell']}", 31)
-        else:
-            debug(f"{spell_info['spell']} found, attempting Discordance", 25)
-            success = use_discordance(summoned_creature)
-            if success:
-                debug("Discordance successful or already applied, releasing creature", 25)
-                release_creature(summoned_creature)
-            else:
-                debug("Discordance attempt unsuccessful", 31)
+        if discordance_skill < 97.7:
+            # Original logic for training on summoned creatures
+            magery_skill = GetSkillValue('Magery')
+            spell_info = next((info for info in SKILL_SPELL_MAPPING['Magery'] if magery_skill < info['max_skill']), None)
             
+            if not spell_info:
+                debug(f"No suitable spell found for Magery skill {magery_skill}", 31)
+                continue
+
             FindType(spell_info['creature_type'], Ground())
-            if not FindItem():
-                debug(f"{spell_info['spell']} disappeared, will cast a new one in the next iteration", 25)
+            summoned_creature = FindItem()
+            
+            if not summoned_creature:
+                debug(f"No {spell_info['spell']} found, attempting to cast...", 25)
+                success = cast_summoned_creature()
+                if not success:
+                    debug(f"Failed to cast {spell_info['spell']}", 31)
+            else:
+                debug(f"{spell_info['spell']} found, attempting Discordance", 25)
+                success = use_discordance(summoned_creature)
+                if success:
+                    debug("Discordance successful or already applied, releasing creature", 25)
+                    release_creature(summoned_creature)
+                else:
+                    debug("Discordance attempt unsuccessful", 31)
+                
+                FindType(spell_info['creature_type'], Ground())
+                if not FindItem():
+                    debug(f"{spell_info['spell']} disappeared, will cast a new one in the next iteration", 25)
+        else:
+            # New logic for training on real creatures
+            target = find_creature_for_discordance()
+            if target:
+                success = use_discordance(target)
+                if success:
+                    debug("Discordance successful, using Hiding and waiting", 25)
+                    use_hiding()
+                    Wait(15000)  # Wait for 17 seconds
+                else:
+                    debug("Discordance attempt unsuccessful", 31)
+            else:
+                debug("No suitable creature found for Discordance training", 31)
+                Wait(5000)  # Wait before trying again
 
     while Dead():
         Wait(5000)
