@@ -1,6 +1,7 @@
 from py_stealth import *
 import time
 import datetime
+from damage_counter import *
 
 discord_cooldowns = {}
 last_discord_use = 0
@@ -56,20 +57,21 @@ def Heal(target, threshold):
 def MORTAL(target):
     if IsYellowHits(target) and Mana() > 15:
         # CastToObj("Remove Curse", target)
-        Cast("Remove Curse")
-        WaitForTarget(1000)
-        if TargetPresent():
-            TargetToObject(target)
-            Wait(500)
+        CastToObj("Remove Curse", target)
+        # Cast("Remove Curse")
+        # WaitForTarget(1500)
+        # if TargetPresent():
+        #     TargetToObject(target)
+        #     Wait(500)
 
 def CURE(target, threshold):
     if IsPoisoned(target) and Mana() > 15:
-        # CastToObj("cleanse by fire", target)
-        Cast("Cleanse by fire")
-        WaitForTarget(1000)
-        if TargetPresent():
-            TargetToObject(target)
-            Wait(500)
+        CastToObj("cleanse by fire", target)
+        # Cast("Cleanse by fire")
+        # WaitForTarget(1000)
+        # if TargetPresent():
+        #     TargetToObject(target)
+        #     Wait(500)
 
 def follow(id, distance):
     if id_distance := GetDistance(id) > distance:
@@ -251,3 +253,11 @@ def use_honor(target):
         return False
 
 print("HONOR function called")
+
+# Add this function to integrate damage counter with the main loop
+def update_damage_counter():
+    if WarTargetID() == 0 and damage_counter['enemy'] != 0 and not IsObjectExists(damage_counter['enemy']):
+        reset_and_print_stats()
+
+# Modify the existing SetEventProc call to include the damage function
+SetEventProc('evwardamage', damage)

@@ -76,5 +76,10 @@ UI_CONFIG = {
         "EOO", "CW", "DF", "HONOR"
     ],
     "list_keys": ["FRIENDS", "PETS"],
-    "follow_key": "FOLLOW"
+    "follow_key": "FOLLOW",
+    "damage_counter": {
+        "position": "right",  # Position the damage counter on the right side
+        "width": 20,  # Width of the damage counter display
+        "height": 5,  # Height of the damage counter display
+    }
 }

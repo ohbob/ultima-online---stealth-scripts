@@ -14,6 +14,7 @@ sys.path.append(current_dir)
 
 from ui_config import UI_CONFIG
 from functions import *  # Import all functions from functions.py
+from damage_counter import update_damage_counter, reset_damage_counter
 
 class SimpleUI:
     def __init__(self, master):
@@ -36,6 +37,7 @@ class SimpleUI:
         self.buttons = {}
         self.create_buttons()
         self.create_bottom_frame()
+        self.create_damage_counter()
 
         self.running = False
         self.start_time = None
@@ -141,6 +143,21 @@ class SimpleUI:
                                          highlightbackground='black',
                                          highlightthickness=1)
         self.settings_button.pack(side=tk.LEFT, fill=tk.X, padx=(2,5), pady=5)
+
+    def create_damage_counter(self):
+        damage_frame = tk.Frame(self.master, bg='black')
+        damage_frame.grid(row=0, column=2, rowspan=len(UI_CONFIG["buttons"]), sticky='nsew')
+
+        self.damage_text = tk.Text(damage_frame, width=UI_CONFIG["damage_counter"]["width"] // 2,
+                                   height=UI_CONFIG["damage_counter"]["height"],
+                                   bg='#333333', fg='white', font=('Courier', 12), padx=5, pady=5)
+        self.damage_text.pack(fill=tk.BOTH, expand=True)
+        self.damage_text.tag_configure('center', justify='center')
+
+        self.damage_info = tk.Label(damage_frame, text="", bg='black', fg='white', font=('Courier', 10), justify=tk.LEFT)
+        self.damage_info.pack(fill=tk.X, pady=(5, 0))
+
+        self.update_damage_counter()  # Initial update
 
     def toggle_button(self, name):
         if name not in self.state:
@@ -378,137 +395,139 @@ class SimpleUI:
     def is_running(self):
         return self.running
 
-from functions import *
-
-def main_loop(app):
-    while True:
-        settings = app.get_settings()
+    def update_damage_counter(self):
+        info = update_damage_counter()
+        self.damage_text.delete('1.0', tk.END)
         
-        if app.is_running():
-            state = app.get_state()
-            
-            while Dead():
-                Wait(1000)
-            
-            # Follow
-            if state[UI_CONFIG["follow_key"]] and settings["Follow Distance"] > 0 and state['follow_target']:
-                follow_id = int(state['follow_target'][0])
-                follow_distance = settings["Follow Distance"]
-                follow(follow_id, follow_distance)
-
-
-            if state["EOO"]: EOO()
-            if state["CW"]: CW()
-            if state["DF"]: DF()
-            # if state['CA']: CA()
-            # if state['LS']: LS()
-            # if state['CONF']: CONF()
-            if state['HONOR']: HONOR()
-            if state['PRI']: PRI()
+        # Display recent damages
+        recent_damages = info.get('recent_damages', [])
+        for damage in recent_damages:
+            self.damage_text.insert(tk.END, f"{damage}\n", 'center')
         
+        # Fill remaining lines if less than 10 recent damages
+        for _ in range(10 - len(recent_damages)):
+            self.damage_text.insert(tk.END, "[  ] [  ]\n", 'center')
+        
+        # Update the info label
+        info_text = f"{info['status']}{info['name']}\n"
+        info_text += f"Total: [{info['total_dmg_received']}] [{info['total_dmg_done']}]\n"
+        info_text += f"DPS: {info['dps']:.2f} | DRPS: {info['drps']:.2f}\n"
+        info_text += f"Time: {info['time']}"
+        if not info.get('is_active', True):
+            info_text += " (Final)"
+        self.damage_info.config(text=info_text)
+        
+        print(f"Damage Counter Updated: {info}")  # Debug output
 
+        # Schedule the next update
+        self.master.after(1000, self.update_damage_counter)  # Update every second
 
+    def main_loop(self):
+        while True:
+            settings = self.get_settings()
+            
+            if self.is_running():
+                state = self.get_state()
+                
+                while Dead():
+                    Wait(1000)
+                
+                # Follow
+                if state[UI_CONFIG["follow_key"]] and settings["Follow Distance"] > 0 and state['follow_target']:
+                    follow_id = int(state['follow_target'][0])
+                    follow_distance = settings["Follow Distance"]
+                    follow(follow_id, follow_distance)
 
-            # Heal friends and pets
-            for list_key in ["PETS", "FRIENDS"]:
-                for id_str, name in state[list_key]:
-                    try:
-                        is_me = id_str == str(Self())
-                        ID = int(id_str)
-                        if IsObjectExists(ID) and GetDistance(ID) < 8:
-                            is_friend = list_key == "FRIENDS"
-                            is_pet = list_key == "PETS"
-                            
-                            # Mortal Strike logic
-                            if state['MORTAL']:
-                                if is_friend and settings.get("Remove Mortal (Friends)", False):
-                                    MORTAL(ID)
-                                if is_pet and settings.get("Remove Mortal (Pets)", False):
-                                    MORTAL(ID)
+                if state["EOO"]: EOO()
+                if state["CW"]: CW()
+                if state["DF"]: DF()
+                if state['HONOR']: HONOR()
+                if state['PRI']: PRI()
+            
+                # Heal friends and pets
+                for list_key in ["PETS", "FRIENDS"]:
+                    for id_str, name in state[list_key]:
+                        try:
+                            is_me = id_str == str(Self())
+                            ID = int(id_str)
+                            if IsObjectExists(ID) and GetDistance(ID) < 8:
+                                is_friend = list_key == "FRIENDS"
+                                is_pet = list_key == "PETS"
+                                
+                                # Mortal Strike logic
+                                if state['MORTAL']:
+                                    if is_friend and settings.get("Remove Mortal (Friends)", False):
+                                        MORTAL(ID)
+                                    if is_pet and settings.get("Remove Mortal (Pets)", False):
+                                        MORTAL(ID)
 
-                            # Cure logic
-                            if state["CURE"]:
-                                remove_poison_friends = settings.get("Remove Poison (Friends)", False)
-                                remove_poison_pets = settings.get("Remove Poison (Pets)", False)
-                                if (is_friend and remove_poison_friends) or (is_pet and remove_poison_pets):
-                                    threshold = settings.get("Friend Cure Threshold" if is_friend else "Pet Cure Threshold", 0)
-                                    CURE(ID, threshold)
-                                    # print(f"Curing {'friend' if is_friend else 'pet'} {name} ({ID}) at {threshold}% poison")
-
-                            # Heal logic
-                            if state["HEAL"]:
-                                threshold = settings.get("Friend Heal Threshold" if is_friend else "Pet Heal Threshold", 0)
-                                # hp = GetHP(ID) if not is_me else GetHP(ID) * 4
-
-                                hp = (GetHP(ID) / MaxHP()) * 100 if is_me else GetHP(ID) * 4
-                                # print("-----------------------")
-                                # print(f"Healing {name} ({ID}) at {hp}% health  {threshold} treshold")
-                                # print("Your real hp", GetHP(Self()))
-                                # print("-----------------------")
-                                if hp < threshold:
-                                    Heal(ID, threshold)
-                                    print(f"Healing {name} ({ID}) at {hp}% health, and {threshold} treshold")
-                            
-                            # Bandage logic
-                            if state["BANDAGE"]:
-                                if is_friend and settings.get("Use Bandages (Friends)", False) and datetime.datetime.now() >= app.next_bandage_time:
-                                    threshold = settings.get("Friend Bandage Threshold", 0)
+                                # Cure logic
+                                if state["CURE"]:
+                                    remove_poison_friends = settings.get("Remove Poison (Friends)", False)
+                                    remove_poison_pets = settings.get("Remove Poison (Pets)", False)
+                                    if (is_friend and remove_poison_friends) or (is_pet and remove_poison_pets):
+                                        threshold = settings.get("Friend Cure Threshold" if is_friend else "Pet Cure Threshold", 0)
+                                        CURE(ID, threshold)
+                                
+                                # Heal logic
+                                if state["HEAL"]:
+                                    threshold = settings.get("Friend Heal Threshold" if is_friend else "Pet Heal Threshold", 0)
                                     hp = (GetHP(ID) / MaxHP()) * 100 if is_me else GetHP(ID) * 4
                                     if hp < threshold:
-                                        print(f"Applying bandage to {name} (HP: {hp:.1f}%, Threshold: {threshold}%)")
-                                        BANDAGE(ID, threshold)
-                                        try:
-                                            buffs = GetBuffBarInfo()
-                                            print(f"Debug: All buffs: {buffs}")  # Debug print
-                                            for buff in buffs:
-                                                print(f"Debug: Checking buff: {buff}")  # Debug print
-                                                if 'ClilocID1' in buff and GetClilocByID(buff['ClilocID1']).upper() == 'HEALING':
-                                                    if 'TimeStart' in buff and 'Seconds' in buff:
-                                                        buff_start_time = buff['TimeStart']
-                                                        buff_duration = buff['Seconds']
-                                                        buff_end_time = buff_start_time + timedelta(seconds=buff_duration)
-                                                        app.next_bandage_time = buff_end_time + timedelta(seconds=1)
-                                                        time_until_next = (app.next_bandage_time - datetime.datetime.now()).total_seconds()
-                                                        print(f"Healing buff applied. Next bandage in {time_until_next:.1f} seconds")
-                                                    else:
-                                                        print(f"Warning: 'TimeStart' or 'Seconds' not found in healing buff: {buff}")
-                                                    break
-                                            else:
-                                                print("Warning: Healing buff not found after bandaging")
-                                        except Exception as e:
-                                            print(f"Error checking buffs: {str(e)}")
-                                            print(f"Debug: Exception details: {type(e).__name__}, {e.args}")
-                                elif is_pet and settings.get("Use Veterinary", False):
-                                    threshold = settings.get("Pet Bandage Threshold", 0)
-                                    hp = (GetHP(ID) / MaxHP()) * 100 if is_me else GetHP(ID) * 4
-                                    if hp < threshold:
-                                        Veterinary(ID, threshold)
-
-                                        # print(f"Using Veterinary on pet {name} ({ID}) at {threshold}% health")
-                    except ValueError:
-                        print(f"Invalid ID for {name}: {id_str}")
-                    except Exception as e:
-                        print(f"Error processing {name} ({id_str}): {str(e)}")
-            
-            # Discord
-            if state["DISCORD"]:
-                discord(state['FRIENDS'], state['PETS'])
-                # print("Using Discord")
-                # Implement Discord logic here
-            
-            # # Print friends and pets lists (consider doing this less frequently to reduce spam)
-            # for list_key in UI_CONFIG["list_keys"]:
-            #     items_str = ', '.join([f"{name} ({id})" for id, name in state[list_key]])
-            #     print(f"{list_key}: {items_str}")
-        
-        # Wait(settings.get("Scan Frequency (ms)", 1000))
+                                        Heal(ID, threshold)
+                                        print(f"Healing {name} ({ID}) at {hp}% health, and {threshold} threshold")
+                                
+                                # Bandage logic
+                                if state["BANDAGE"]:
+                                    if is_friend and settings.get("Use Bandages (Friends)", False) and datetime.datetime.now() >= self.next_bandage_time:
+                                        threshold = settings.get("Friend Bandage Threshold", 0)
+                                        hp = (GetHP(ID) / MaxHP()) * 100 if is_me else GetHP(ID) * 4
+                                        if hp < threshold:
+                                            print(f"Applying bandage to {name} (HP: {hp:.1f}%, Threshold: {threshold}%)")
+                                            BANDAGE(ID, threshold)
+                                            try:
+                                                buffs = GetBuffBarInfo()
+                                                print(f"Debug: All buffs: {buffs}")  # Debug print
+                                                for buff in buffs:
+                                                    print(f"Debug: Checking buff: {buff}")  # Debug print
+                                                    if 'ClilocID1' in buff and GetClilocByID(buff['ClilocID1']).upper() == 'HEALING':
+                                                        if 'TimeStart' in buff and 'Seconds' in buff:
+                                                            buff_start_time = buff['TimeStart']
+                                                            buff_duration = buff['Seconds']
+                                                            buff_end_time = buff_start_time + timedelta(seconds=buff_duration)
+                                                            self.next_bandage_time = buff_end_time + timedelta(seconds=1)
+                                                            time_until_next = (self.next_bandage_time - datetime.datetime.now()).total_seconds()
+                                                            print(f"Healing buff applied. Next bandage in {time_until_next:.1f} seconds")
+                                                        else:
+                                                            print(f"Warning: 'TimeStart' or 'Seconds' not found in healing buff: {buff}")
+                                                        break
+                                                else:
+                                                    print("Warning: Healing buff not found after bandaging")
+                                            except Exception as e:
+                                                print(f"Error checking buffs: {str(e)}")
+                                                print(f"Debug: Exception details: {type(e).__name__}, {e.args}")
+                                    elif is_pet and settings.get("Use Veterinary", False):
+                                        threshold = settings.get("Pet Bandage Threshold", 0)
+                                        hp = (GetHP(ID) / MaxHP()) * 100 if is_me else GetHP(ID) * 4
+                                        if hp < threshold:
+                                            Veterinary(ID, threshold)
+                        except ValueError:
+                            print(f"Invalid ID for {name}: {id_str}")
+                        except Exception as e:
+                            print(f"Error processing {name} ({id_str}): {str(e)}")
+                
+                # Discord
+                if state["DISCORD"]:
+                    discord(state['FRIENDS'], state['PETS'])
+                
+            Wait(100)
 
 if __name__ == "__main__":
     root = tk.Tk()
     app = SimpleUI(root)
     
     # Start the main loop in a separate thread
-    main_loop_thread = threading.Thread(target=main_loop, args=(app,))
+    main_loop_thread = threading.Thread(target=app.main_loop)
     main_loop_thread.daemon = True
     main_loop_thread.start()
     
