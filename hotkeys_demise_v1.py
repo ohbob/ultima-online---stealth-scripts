@@ -24,6 +24,9 @@ def configurable_function(**kwargs):
         return func
     return decorator
 
+def exclude_from_gui(func):
+    func._exclude_from_gui = True
+    return func
 # ------------------------------------------------------------------------------------
 
 def main_loop():
@@ -45,8 +48,8 @@ class Functions:
 
     def hide():
         if not Hidden():
-            debug("Not hidden", "warning")
             UseSkill('Hiding')
+            debug("Not hidden", "warning")
         else:
             debug("Already hidden", "info")
 
@@ -64,9 +67,13 @@ class Functions:
         debug(f"Autoheal {'enabled' if Functions.autoheal_enabled else 'disabled'}", 
               "success" if Functions.autoheal_enabled else "fail")
 
-
+    @exclude_from_gui
+    def secret_function():
+        # This function won't appear in the GUI
+        pass
 
 # ------------------------------------------------------------------------------------
+
 
 
 class SystemFunctions:
@@ -110,11 +117,11 @@ class HotkeyConfig:
 
     def load_functions(self):
         for func_name, func in inspect.getmembers(SystemFunctions, predicate=inspect.isfunction):
-            if not func_name.startswith('__'):
+            if not func_name.startswith('__') and not getattr(func, '_exclude_from_gui', False):
                 self.tree.insert('', 'end', values=(func_name, ''), tags=('system',))
         
         for func_name, func in inspect.getmembers(Functions, predicate=inspect.isfunction):
-            if not func_name.startswith('__') and func_name != 'main_loop':
+            if not func_name.startswith('__') and func_name != 'main_loop' and not getattr(func, '_exclude_from_gui', False):
                 self.tree.insert('', 'end', values=(func_name, ''))
                 if hasattr(func, 'config'):
                     self.create_function_config(func_name, func.config)
