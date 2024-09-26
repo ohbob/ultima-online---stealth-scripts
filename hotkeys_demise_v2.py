@@ -9,38 +9,59 @@ import time
 from typing import Literal, get_args, TypeVar
 from collections import defaultdict
 import threading
+from functools import wraps
 
 
-def debug(message: str, color: Literal["success", "fail", "info", "warning"] = "info") -> None:
+
+def debug(message: str, color: Literal["success", "fail", "info", "warning"] = "info", client=True) -> None:
     color_map = {
         "success": 60,  # Green
         "fail": 30,     # Red
         "info": 10,      # Blue
         "warning": 40   # Orange
     }
-    ClientPrintEx(Self(), color_map[color], 1, f"* {message.upper()} *")
+    if client:
+        ClientPrintEx(Self(), color_map[color], 1, f"* {message.upper()} *")
     print(message)
-    AddToSystemJournal(message)
+    # AddToSystemJournal(message)
 
-def configurable_function(**kwargs):
-    def decorator(func):
-        func.config = kwargs
-        return func
-    return decorator
+def configurable_function(func):
+    params = inspect.signature(func).parameters
+    config = {name: param.default for name, param in params.items()}
+    func.config = config
+    return func
 
 def exclude_from_gui(func):
     func._exclude_from_gui = True
     return func
 
 
+def toggleable(default=False, **kwargs):
+    def decorator(func):
+        @wraps(func)
+        def wrapper(*args, **kwargs):
+            if wrapper.enabled:
+                return func(*args, **kwargs)
+        
+        wrapper.enabled = default
+        for key, value in kwargs.items():
+            setattr(wrapper, key, value)
+        
+        def toggle():
+            wrapper.enabled = not wrapper.enabled
+            return wrapper.enabled
+        
+        wrapper.toggle = toggle
+        return wrapper
+    return decorator
+
 # ------------------------------------------------------------------------------------
 
 def main_loop():
     while True:
         if SystemFunctions.hotkeys_enabled:
-            if Functions.autoheal_enabled:
-                if GetHP(Self()) < MaxHP():
-                    Functions.heal_self()
+            if Functions.autoheal.enabled:
+                Functions.autoheal()
         time.sleep(0.1)  # Small delay to prevent excessive CPU usage
 
 
@@ -111,7 +132,7 @@ class Functions:
         
         name = GetTooltip(id)
         info = f"Name: {name.split('|')[0]}, Type: {GetType(id)}, Color: {GetColor(id)}, ID: {id}"
-        debug(info, "info")
+        debug(info, "info", False)
         
     def containerGetInfo():
         id = Functions.getTargetID()
@@ -124,23 +145,23 @@ class Functions:
                 print("----------")
 
 
-    autoheal_enabled = False
-    autoheal_threshold = 95  # Default value, can be changed via config
     
     @staticmethod
-    def toggle_autoheal():
-        Functions.autoheal_enabled = not Functions.autoheal_enabled
-        debug(f"Autoheal {'enabled' if Functions.autoheal_enabled else 'disabled'}", 
-              "success" if Functions.autoheal_enabled else "fail")
+    @toggleable(default=False, threshold=95)
+    def autoheal():
+        if Functions.autoheal.enabled and not Dead() and GetHP(Self()) < (MaxHP() * Functions.autoheal.threshold / 100):
+            Functions.heal_self()
 
-
-    @configurable_function(enabled=True, threshold=95)
+    @staticmethod
     def heal_self():
-        if Functions.consume("GREATER HEAL"):
-            debug("Healing Self", "success")
-            Wait(3000)
-        else:
-            debug("Healing not possible", "warning")
+        if GetSkillCurrentValue("Magery") > 50 and not Dead() and Mana() > 15:
+            CastToObj("Greater Heal", Self())
+
+        # if Functions.consume("GREATER HEAL"):
+        #     debug("Healing Self", "success")
+        #     Wait(3000)
+        # else:
+        #     debug("Healing not possible", "warning")
 
     @staticmethod
     def deconstruct_gump():
@@ -152,9 +173,9 @@ class Functions:
                     subentries = gump[entry]
                     if isinstance(subentries, list):
                         for x in subentries:
-                            debug(str(x), "info")
+                            debug(str(x), "info", False)
                     else:
-                        debug(str(subentries), "info")
+                        debug(str(subentries), "info", False)
 
     def hide():
         if not Hidden():
@@ -185,9 +206,8 @@ class Functions:
             debug("No target selected.", "warning")
             return
 
-        name = GetName(target)
-        debug("---------", "info")
-        debug(f"Stats for: {name}", "info")
+        debug("---------", "info", False)
+        debug(f"Stats for: {GetName(target)}", "info", False)
 
         items = [ObjAtLayerEx(layer, target) for layer in range(25) if ObjAtLayerEx(layer, target)]
         total_stats = defaultdict(float)
@@ -258,11 +278,11 @@ class Functions:
         order = ['Resistances', 'Bonuses', 'Damage', 'Hit Effects', 'Durability', 'Other', 'Items']
         for group in order:
             if group in grouped_stats and sections_to_show.get(group, True):
-                debug(f"\n{group}:", "info")
+                debug(f"\n{group}:", "info", False)
                 for stat, value in grouped_stats[group].items():
-                    debug(f"  {stat.capitalize()}: {value}", "info")
+                    debug(f"  {stat.capitalize()}: {value}", "info", False)
 
-        debug("---------", "info")
+        debug("---------", "info", False)
 
 
 
@@ -315,8 +335,9 @@ class HotkeyConfig:
         self.config_frame = ttk.Frame(self.notebook)
         self.notebook.add(self.config_frame, text="Function Config")
 
-        self.load_functions()
+        self.function_vars = {}  # To store BooleanVars for each function
         self.load_config()
+        self.load_functions()
 
         self.hotkey_listener = None
         self.current_keys = set()
@@ -332,49 +353,74 @@ class HotkeyConfig:
             raise Exception(f"Failed to get character name: {str(e)}")
 
     def load_functions(self):
+        # Load system functions
         for func_name, func in inspect.getmembers(SystemFunctions, predicate=inspect.isfunction):
             if not func_name.startswith('__') and not getattr(func, '_exclude_from_gui', False):
-                self.tree.insert('', 'end', values=(func_name, ''), tags=('system',))
-        
+                hotkey = self.config.get(func_name, {}).get('hotkey', '')
+                self.tree.insert('', 'end', values=(func_name, hotkey), tags=('system',))
+
+        # Load regular functions
         for func_name, func in inspect.getmembers(Functions, predicate=inspect.isfunction):
             if not func_name.startswith('__') and func_name != 'main_loop' and not getattr(func, '_exclude_from_gui', False):
-                self.tree.insert('', 'end', values=(func_name, ''))
-                if hasattr(func, 'config'):
-                    self.create_function_config(func_name, func.config)
+                hotkey = self.config.get(func_name, {}).get('hotkey', '')
+                self.tree.insert('', 'end', values=(func_name, hotkey))
+                if hasattr(func, 'enabled'):
+                    enabled = self.config.get(func_name, {}).get('enabled', func.enabled)
+                    func.enabled = enabled
+                self.create_function_config(func_name, func)
 
         self.tree.tag_configure('system', background='light gray')
 
-    def create_function_config(self, func_name, config):
+    def create_function_config(self, func_name, func):
+        configurable_attributes = [attr for attr in dir(func) if not attr.startswith('_') and attr != 'enabled' and isinstance(getattr(func, attr), (int, float, str))]
+        
+        if not hasattr(func, 'enabled') and not configurable_attributes:
+            return  # Skip functions without toggles or configurable attributes
+
         frame = ttk.LabelFrame(self.config_frame, text=func_name)
         frame.pack(pady=5, padx=10, fill=tk.X)
 
         row_frame = ttk.Frame(frame)
         row_frame.pack(fill=tk.X, padx=5, pady=2)
 
-        left_frame = ttk.Frame(row_frame)
-        left_frame.pack(side=tk.LEFT, fill=tk.X, expand=True)
+        if hasattr(func, 'enabled'):
+            enabled = self.config.get(func_name, {}).get('enabled', func.enabled)
+            var = tk.BooleanVar(value=enabled)
+            self.function_vars[func_name] = var
+            cb = ttk.Checkbutton(row_frame, text="Enabled", variable=var, 
+                                 command=lambda: self.update_func_enabled(func_name, func))
+            cb.pack(side=tk.LEFT)
 
-        right_frame = ttk.Frame(row_frame)
-        right_frame.pack(side=tk.RIGHT, fill=tk.X)
+        for attr_name in configurable_attributes:
+            value = getattr(func, attr_name)
+            saved_value = self.config.get(func_name, {}).get(attr_name, value)
+            var = tk.StringVar(value=str(saved_value))
+            entry = ttk.Entry(row_frame, textvariable=var, width=10)
+            entry.pack(side=tk.RIGHT)
+            entry.bind('<FocusOut>', lambda e, f=func, n=attr_name, v=var: self.update_func_attr(f, n, v.get()))
+            ttk.Label(row_frame, text=f"{attr_name}:").pack(side=tk.RIGHT, padx=(5, 0))
+            self.update_func_attr(func, attr_name, saved_value)
 
-        for param, default in config.items():
-            if isinstance(default, bool):
-                var = tk.BooleanVar(value=default)
-                ttk.Checkbutton(left_frame, text=param, variable=var).pack(side=tk.LEFT)
-            else:
-                label_frame = ttk.Frame(right_frame)
-                label_frame.pack(side=tk.RIGHT, padx=(10, 0))  # Add some padding to separate from the left side
-                
-                if isinstance(default, (int, float)):
-                    var = tk.DoubleVar(value=default)
-                    ttk.Entry(label_frame, textvariable=var, width=10).pack(side=tk.RIGHT)
-                else:
-                    var = tk.StringVar(value=str(default))
-                    ttk.Entry(label_frame, textvariable=var, width=20).pack(side=tk.RIGHT)
-                
-                ttk.Label(label_frame, text=f"{param}:").pack(side=tk.RIGHT, padx=(0, 5))
+        setattr(self, f"{func_name}_config", frame)
 
-            setattr(self, f"{func_name}_{param}", var)
+    def update_func_enabled(self, func_name, func):
+        enabled = self.function_vars[func_name].get()
+        func.enabled = enabled
+        self.config[func_name] = self.config.get(func_name, {})
+        self.config[func_name]['enabled'] = enabled
+        debug(f"{func_name} {'enabled' if enabled else 'disabled'}", 
+              "success" if enabled else "fail")
+
+    def update_func_attr(self, func, attr_name, value):
+        current_value = getattr(func, attr_name)
+        if isinstance(current_value, bool):
+            setattr(func, attr_name, self.to_bool(value))
+        elif isinstance(current_value, int):
+            setattr(func, attr_name, int(value))
+        elif isinstance(current_value, float):
+            setattr(func, attr_name, float(value))
+        else:
+            setattr(func, attr_name, value)
 
     def load_config(self):
         try:
@@ -383,38 +429,33 @@ class HotkeyConfig:
         except FileNotFoundError:
             self.config = {}
 
-        for func, data in self.config.items():
-            for item in self.tree.get_children():
-                if self.tree.item(item)['values'][0] == func:
-                    hotkey = data.get('hotkey', '') if isinstance(data, dict) else data
-                    self.tree.item(item, values=(func, hotkey))
-                    if hasattr(Functions, func):
-                        func_obj = getattr(Functions, func)
-                        if hasattr(func_obj, 'config'):
-                            for param, value in data.items() if isinstance(data, dict) else {}:
-                                if param != 'hotkey':
-                                    var = getattr(self, f"{func}_{param}", None)
-                                    if var:
-                                        var.set(value)
-                    break
-
     def save_config(self):
-        self.config = {}
+        for func_name, var in self.function_vars.items():
+            if func_name not in self.config:
+                self.config[func_name] = {}
+            self.config[func_name]['enabled'] = var.get()
+
         for item in self.tree.get_children():
             func, hotkey = self.tree.item(item)['values']
             if hotkey:
                 self.config[func] = {"hotkey": hotkey}
 
         for func_name, func in inspect.getmembers(Functions, predicate=inspect.isfunction):
-            if hasattr(func, 'config'):
+            if hasattr(func, 'enabled') or hasattr(func, 'config'):
                 if func_name not in self.config:
                     self.config[func_name] = {}
                 elif isinstance(self.config[func_name], str):
                     self.config[func_name] = {"hotkey": self.config[func_name]}
-                for param in func.config:
-                    var = getattr(self, f"{func_name}_{param}", None)
-                    if var:
-                        self.config[func_name][param] = var.get()
+                
+                # Explicitly save the 'enabled' state
+                if hasattr(func, 'enabled'):
+                    self.config[func_name]['enabled'] = func.enabled
+                
+                for attr_name in dir(func):
+                    if not attr_name.startswith('_') and attr_name != 'enabled':
+                        value = getattr(func, attr_name)
+                        if isinstance(value, (int, float, str, bool)):
+                            self.config[func_name][attr_name] = value
 
         with open('hotkey_config.json', 'w') as f:
             json.dump(self.config, f)
@@ -521,7 +562,13 @@ class HotkeyConfig:
             elif hasattr(Functions, func_name):
                 func = getattr(Functions, func_name)
                 if callable(func):
-                    func()
+                    if hasattr(func, 'enabled'):
+                        func.enabled = not func.enabled
+                        self.function_vars[func_name].set(func.enabled)
+                        debug(f"{func_name} {'enabled' if func.enabled else 'disabled'}", 
+                              "success" if func.enabled else "fail")
+                    else:
+                        func()
                 else:
                     debug(f"Function {func_name} is not callable", "warning")
             else:
@@ -547,30 +594,44 @@ class HotkeyConfig:
                 parsed.append(keyboard.KeyCode.from_char(key))
         return tuple(parsed)
 
+    def to_bool(self, value):
+        if isinstance(value, bool):
+            return value
+        if isinstance(value, str):
+            return value.lower() in ('true', 'yes', '1', 'on')
+        return bool(value)
+
     def __del__(self):
         if hasattr(self, 'hotkey_listener') and self.hotkey_listener:
             self.hotkey_listener.stop()
 
 if __name__ == "__main__":
-    root = tk.Tk()
     try:
-        app = HotkeyConfig(root)
-        
-        # Start the main loop in a separate thread
-        main_thread = threading.Thread(target=main_loop, daemon=True)
-        main_thread.start()
+        root = tk.Tk()
+        app = None
+        try:
+            app = HotkeyConfig(root)
+            
+            # Start the main loop in a separate thread
+            main_thread = threading.Thread(target=main_loop, daemon=True)
+            main_thread.start()
 
-        root.mainloop()
+            root.mainloop()
+        except Exception as e:
+            messagebox.showerror("Error", f"An error occurred during initialization: {str(e)}")
+        finally:
+            # Clean up when the GUI is closed
+            if app and hasattr(app, 'hotkey_listener') and app.hotkey_listener:
+                app.hotkey_listener.stop()
+
+        print("GUI closed. Press Ctrl+C to exit.")
+        try:
+            while True:
+                time.sleep(1)
+        except KeyboardInterrupt:
+            print("Exiting...")
     except Exception as e:
-        messagebox.showerror("Error", f"An error occurred: {str(e)}")
-    finally:
-        # Clean up when the GUI is closed
-        if hasattr(app, 'hotkey_listener') and app.hotkey_listener:
-            app.hotkey_listener.stop()
-
-    print("GUI closed. Press Ctrl+C to exit.")
-    try:
-        while True:
-            time.sleep(1)
-    except KeyboardInterrupt:
-        print("Exiting...")
+        print(f"An error occurred during script startup: {str(e)}")
+        print("Traceback:")
+        import traceback
+        traceback.print_exc()
