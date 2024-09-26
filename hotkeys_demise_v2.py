@@ -125,12 +125,13 @@ class Functions:
 
 
     autoheal_enabled = False
+    autoheal_threshold = 95  # Default value, can be changed via config
     
-    
+    @staticmethod
     def toggle_autoheal():
         Functions.autoheal_enabled = not Functions.autoheal_enabled
         debug(f"Autoheal {'enabled' if Functions.autoheal_enabled else 'disabled'}", 
-                "success" if Functions.autoheal_enabled else "fail")
+              "success" if Functions.autoheal_enabled else "fail")
 
 
     @configurable_function(enabled=True, threshold=95)
@@ -285,7 +286,12 @@ class SystemFunctions:
 class HotkeyConfig:
     def __init__(self, master):
         self.master = master
-        self.update_title()
+        self.hotkey_listener = None
+        try:
+            self.update_title()
+        except Exception as e:
+            messagebox.showerror("Error", f"Failed to connect to Stealth: {str(e)}")
+            self.master.title("Hotkey Configuration - Not Connected")
 
         self.notebook = ttk.Notebook(master)
         self.notebook.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
@@ -314,11 +320,16 @@ class HotkeyConfig:
 
         self.hotkey_listener = None
         self.current_keys = set()
+        self.last_activation_time = 0
+        self.activation_cooldown = 0.3  # 300 milliseconds cooldown
         self.start_hotkey_listener()
 
     def update_title(self):
-        char_name = GetName(Self())
-        self.master.title(f"Hotkey Configuration - {char_name}")
+        try:
+            char_name = GetName(Self())
+            self.master.title(f"Hotkey Configuration - {char_name}")
+        except Exception as e:
+            raise Exception(f"Failed to get character name: {str(e)}")
 
     def load_functions(self):
         for func_name, func in inspect.getmembers(SystemFunctions, predicate=inspect.isfunction):
@@ -337,18 +348,31 @@ class HotkeyConfig:
         frame = ttk.LabelFrame(self.config_frame, text=func_name)
         frame.pack(pady=5, padx=10, fill=tk.X)
 
+        row_frame = ttk.Frame(frame)
+        row_frame.pack(fill=tk.X, padx=5, pady=2)
+
+        left_frame = ttk.Frame(row_frame)
+        left_frame.pack(side=tk.LEFT, fill=tk.X, expand=True)
+
+        right_frame = ttk.Frame(row_frame)
+        right_frame.pack(side=tk.RIGHT, fill=tk.X)
+
         for param, default in config.items():
             if isinstance(default, bool):
                 var = tk.BooleanVar(value=default)
-                ttk.Checkbutton(frame, text=param, variable=var).pack(anchor=tk.W)
-            elif isinstance(default, (int, float)):
-                var = tk.DoubleVar(value=default)
-                ttk.Label(frame, text=f"{param}:").pack(side=tk.LEFT)
-                ttk.Entry(frame, textvariable=var, width=10).pack(side=tk.LEFT, padx=5)
+                ttk.Checkbutton(left_frame, text=param, variable=var).pack(side=tk.LEFT)
             else:
-                var = tk.StringVar(value=str(default))
-                ttk.Label(frame, text=f"{param}:").pack(side=tk.LEFT)
-                ttk.Entry(frame, textvariable=var).pack(side=tk.LEFT, padx=5)
+                label_frame = ttk.Frame(right_frame)
+                label_frame.pack(side=tk.RIGHT, padx=(10, 0))  # Add some padding to separate from the left side
+                
+                if isinstance(default, (int, float)):
+                    var = tk.DoubleVar(value=default)
+                    ttk.Entry(label_frame, textvariable=var, width=10).pack(side=tk.RIGHT)
+                else:
+                    var = tk.StringVar(value=str(default))
+                    ttk.Entry(label_frame, textvariable=var, width=20).pack(side=tk.RIGHT)
+                
+                ttk.Label(label_frame, text=f"{param}:").pack(side=tk.RIGHT, padx=(0, 5))
 
             setattr(self, f"{func_name}_{param}", var)
 
@@ -458,10 +482,16 @@ class HotkeyConfig:
             self.assign_hotkey(item)
 
     def start_hotkey_listener(self):
+        if self.hotkey_listener:
+            self.hotkey_listener.stop()
         self.hotkey_listener = keyboard.Listener(on_press=self.on_key_press, on_release=self.on_key_release)
         self.hotkey_listener.start()
 
     def on_key_press(self, key):
+        current_time = time.time()
+        if current_time - self.last_activation_time < self.activation_cooldown:
+            return  # Ignore rapid repeated activations
+
         if isinstance(key, keyboard.Key):
             self.current_keys.add(key)
         elif isinstance(key, keyboard.KeyCode):
@@ -478,7 +508,11 @@ class HotkeyConfig:
             if hotkey_str:
                 hotkey = self.parse_hotkey(hotkey_str)
                 if all(k in self.current_keys for k in hotkey):
-                    self.activate_function(func)
+                    current_time = time.time()
+                    if current_time - self.last_activation_time >= self.activation_cooldown:
+                        self.activate_function(func)
+                        self.last_activation_time = current_time
+                    break  # Exit after first matching hotkey to prevent multiple activations
 
     def activate_function(self, func_name):
         if SystemFunctions.hotkeys_enabled or func_name == 'toggle_all_hotkeys':
@@ -514,19 +548,29 @@ class HotkeyConfig:
         return tuple(parsed)
 
     def __del__(self):
-        if self.hotkey_listener:
+        if hasattr(self, 'hotkey_listener') and self.hotkey_listener:
             self.hotkey_listener.stop()
 
 if __name__ == "__main__":
     root = tk.Tk()
-    app = HotkeyConfig(root)
-    
-    # Start the main loop in a separate thread
-    main_thread = threading.Thread(target=main_loop, daemon=True)
-    main_thread.start()
+    try:
+        app = HotkeyConfig(root)
+        
+        # Start the main loop in a separate thread
+        main_thread = threading.Thread(target=main_loop, daemon=True)
+        main_thread.start()
 
-    root.mainloop()
+        root.mainloop()
+    except Exception as e:
+        messagebox.showerror("Error", f"An error occurred: {str(e)}")
+    finally:
+        # Clean up when the GUI is closed
+        if hasattr(app, 'hotkey_listener') and app.hotkey_listener:
+            app.hotkey_listener.stop()
 
-    # Clean up when the GUI is closed
-    if app.hotkey_listener:
-        app.hotkey_listener.stop()
+    print("GUI closed. Press Ctrl+C to exit.")
+    try:
+        while True:
+            time.sleep(1)
+    except KeyboardInterrupt:
+        print("Exiting...")
