@@ -6,7 +6,8 @@ from pynput import keyboard
 import inspect
 from pynput.keyboard import Key, KeyCode
 import time
-from typing import Literal
+from typing import Literal, get_args, TypeVar
+from collections import defaultdict
 import threading
 
 
@@ -14,10 +15,12 @@ def debug(message: str, color: Literal["success", "fail", "info", "warning"] = "
     color_map = {
         "success": 60,  # Green
         "fail": 30,     # Red
-        "info": 5,      # Blue
+        "info": 10,      # Blue
         "warning": 40   # Orange
     }
     ClientPrintEx(Self(), color_map[color], 1, f"* {message.upper()} *")
+    print(message)
+    AddToSystemJournal(message)
 
 def configurable_function(**kwargs):
     def decorator(func):
@@ -28,6 +31,8 @@ def configurable_function(**kwargs):
 def exclude_from_gui(func):
     func._exclude_from_gui = True
     return func
+
+
 # ------------------------------------------------------------------------------------
 
 def main_loop():
@@ -38,14 +43,108 @@ def main_loop():
                     Functions.heal_self()
         time.sleep(0.1)  # Small delay to prevent excessive CPU usage
 
+
+
+ConsumableType = Literal[
+    "GREATER EXPLOSION", "GREATER STRENGTH", "GREATER HEAL", "GREATER REFRESHMENT",
+    "GREATER AGILITY", "GREATER CURE", "GREATER CONFLAGRATION", "GREATER CONFUSION BLAST",
+    "INVISIBILITY", "SMOKE BOMB", "ENCHANTED APPLE", "BOLAS", "ORANGE PETALS",
+    "ROSE OF TRINSIC", "GRAPES OF WRATH", "RECALL"
+]
+
 class Functions:
     autoheal_enabled = False
     autoheal_threshold = 95  # Default value, can be changed via config
 
+    @exclude_from_gui
+    def getTargetID() -> int :
+        ClientRequestObjectTarget()
+        WaitForClientTargetResponse(60000)
+        if ClientTargetResponsePresent():
+            response = ClientTargetResponse()
+            if isinstance(response, dict):
+                item_id = response.get('ID', None)
+                return item_id
+        return None
+
+    @staticmethod
+    @exclude_from_gui
+    def consume(item: ConsumableType) -> bool:
+        CONSUMABLE_MAP = {
+            "GREATER EXPLOSION": (3853, 0),
+            "GREATER STRENGTH": (3849, 0),
+            "GREATER HEAL": (3852, 0),
+            "GREATER REFRESHMENT": (3851, 0),
+            "GREATER AGILITY": (3848, 0),
+            "GREATER CURE": (3847, 0),
+            "GREATER CONFLAGRATION": (3846, 1161),
+            "GREATER CONFUSION BLAST": (3846, 1165),
+            "INVISIBILITY": (3846, 306),
+            "SMOKE BOMB": (10248, 0),
+            "ENCHANTED APPLE": (12248, 1160),
+            "BOLAS": (9900, 0),
+            "ORANGE PETALS": (4129, 43),
+            "ROSE OF TRINSIC": (4129, 14),
+            "GRAPES OF WRATH": (12247, 1154),
+            "RECALL": (8012, 0),
+        }
+        
+        if item in CONSUMABLE_MAP:
+            type, color = CONSUMABLE_MAP[item]
+            if UseType(type, color):
+                debug(f"Using {item}", "success")
+                return True
+            else:
+                debug(f"MISSING {item}", "warning")
+                return False
+        else:
+            debug(f"Unknown consumable: {item}", "warning")
+            return False
+        
+    @staticmethod
+    def singleGetInfo(id=None):
+        if id is None:
+            # debug("Please select a target...", "info")
+            id = Functions.getTargetID()
+            if id is None:
+                debug("No target selected.", "info")
+                return
+        
+        name = GetTooltip(id)
+        info = f"Name: {name.split('|')[0]}, Type: {GetType(id)}, Color: {GetColor(id)}, ID: {id}"
+        debug(info, "info")
+        
+    def containerGetInfo():
+        id = Functions.getTargetID()
+        if id != None:
+            FindType(0xFFFF, id)
+            if GetFindedList():
+                print("----------")
+                for item in GetFindedList():
+                    Functions.singleGetInfo(item)
+                print("----------")
+
     @configurable_function(enabled=True, threshold=95)
     def heal_self():
-        debug("Healing Self", "success")
-        # Add actual healing logic here
+        if Functions.consume("GREATER HEAL"):
+            debug("Healing Self", "success")
+            Wait(3000)
+        else:
+            debug("Healing not possible", "warning")
+
+    @staticmethod
+    def deconstruct_gump():
+        for i in range(GetGumpsCount()):
+            gump = GetGumpInfo(i)
+            for entry in gump:
+                debug(f"---------\n{entry}", "info")
+                if len(entry) > 0:
+                    subentries = gump[entry]
+                    if isinstance(subentries, list):
+                        for x in subentries:
+                            debug(str(x), "info")
+                    else:
+                        debug(str(subentries), "info")
 
     def hide():
         if not Hidden():
@@ -72,6 +171,98 @@ class Functions:
     def secret_function():
         # This function won't appear in the GUI
         pass
+
+    def get_total_stats(show_resistances=True, show_bonuses=True, show_damage=True, 
+                        show_hit_effects=True, show_durability=False, show_other=True, show_items=True):
+        target = Functions.getTargetID()
+        if target is None:
+            debug("No target selected.", "warning")
+            return
+
+        name = GetName(target)
+        debug("---------", "info")
+        debug(f"Stats for: {name}", "info")
+
+        items = [ObjAtLayerEx(layer, target) for layer in range(25) if ObjAtLayerEx(layer, target)]
+        total_stats = defaultdict(float)
+
+        for item in items:
+            info = GetTooltip(item)
+            for prop in info.split('|'):
+                key, value = prop.rsplit(':', 1) if ':' in prop else prop.rsplit(' ', 1) if ' ' in prop else (None, None)
+                if key and value:
+                    try:
+                        total_stats[key.strip().lower()] += float(value.strip().rstrip('%'))
+                    except ValueError:
+                        pass
+
+        def normalize_stat_name(stat: str) -> str:
+            stat = stat.lower().replace('total ', '')
+            if 'durability' in stat:
+                return 'durability'
+            return stat
+
+        def format_stat_value(stat: str, value: float) -> str:
+            if 'resist' in stat or 'increase' in stat or 'reduction' in stat:
+                return f"{value:.1f}%"
+            if stat == 'durability':
+                return f"{value:.0f}"
+            if value == float('inf'):
+                return "Infinite"
+            if 'weapon damage' in stat:
+                return f"{value:.0f}"
+            return f"{value:.1f}"
+
+        grouped_stats = defaultdict(dict)
+        for stat, value in total_stats.items():
+            normalized_stat = normalize_stat_name(stat)
+            formatted_value = format_stat_value(normalized_stat, value)
+            
+            if 'resist' in normalized_stat:
+                grouped_stats['Resistances'][normalized_stat] = formatted_value
+            elif 'bonus' in normalized_stat or 'increase' in normalized_stat:
+                grouped_stats['Bonuses'][normalized_stat] = formatted_value
+            elif 'durability' in normalized_stat:
+                grouped_stats['Durability'][stat] = formatted_value
+            elif 'damage' in normalized_stat:
+                if 'weapon damage' in normalized_stat:
+                    parts = normalized_stat.split()
+                    if len(parts) >= 3:
+                        key = f"Weapon damage {parts[2]}"
+                        grouped_stats['Damage'][key] = formatted_value
+                else:
+                    grouped_stats['Damage'][normalized_stat] = formatted_value
+            elif 'hit' in normalized_stat:
+                grouped_stats['Hit Effects'][normalized_stat] = formatted_value
+            else:
+                grouped_stats['Other'][normalized_stat] = formatted_value
+        
+        grouped_stats['Items'] = {f"Item {i+1}": GetTooltip(item).split('|')[0].strip() for i, item in enumerate(items)}
+        
+        sections_to_show = {
+            'Resistances': show_resistances,
+            'Bonuses': show_bonuses,
+            'Damage': show_damage,
+            'Hit Effects': show_hit_effects,
+            'Durability': show_durability,
+            'Other': show_other,
+            'Items': show_items
+        }
+
+        order = ['Resistances', 'Bonuses', 'Damage', 'Hit Effects', 'Durability', 'Other', 'Items']
+        for group in order:
+            if group in grouped_stats and sections_to_show.get(group, True):
+                debug(f"\n{group}:", "info")
+                for stat, value in grouped_stats[group].items():
+                    debug(f"  {stat.capitalize()}: {value}", "info")
+
+        debug("---------", "info")
+
+
+
+
+
+
 
 # ------------------------------------------------------------------------------------
 
@@ -257,8 +448,6 @@ class HotkeyConfig:
             self.assign_hotkey(item)
 
     def start_hotkey_listener(self):
-        if self.hotkey_listener:
-            self.hotkey_listener.stop()
         self.hotkey_listener = keyboard.Listener(on_press=self.on_key_press, on_release=self.on_key_release)
         self.hotkey_listener.start()
 
@@ -287,18 +476,12 @@ class HotkeyConfig:
                 getattr(SystemFunctions, func_name)()
             elif hasattr(Functions, func_name):
                 func = getattr(Functions, func_name)
-                if func_name == 'toggle_autoheal':
-                    Functions.toggle_autoheal()
-                else:
-                    func_config = self.config.get(func_name, {})
-                    if isinstance(func_config, dict):
-                        for key, value in func_config.items():
-                            if key != 'hotkey':
-                                setattr(Functions, f"{func_name}_{key}", value)
-                    if hasattr(func, 'config') and 'enabled' in func.config:
-                        current_state = getattr(Functions, f"{func_name}_enabled", True)
-                        setattr(Functions, f"{func_name}_enabled", not current_state)
+                if callable(func):
                     func()
+                else:
+                    debug(f"Function {func_name} is not callable", "warning")
+            else:
+                debug(f"Function {func_name} not found", "warning")
         else:
             debug(f"Hotkey for {func_name} pressed, but hotkeys are disabled", "fail")
 
@@ -337,13 +520,3 @@ if __name__ == "__main__":
     # Clean up when the GUI is closed
     if app.hotkey_listener:
         app.hotkey_listener.stop()
-
-    print("GUI closed. Press Ctrl+C to exit.")
-    try:
-        while True:
-            time.sleep(1)
-    except KeyboardInterrupt:
-        print("Exiting...")
-    finally:
-        if app.hotkey_listener:
-            app.hotkey_listener.stop()
