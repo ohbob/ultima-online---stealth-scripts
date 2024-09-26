@@ -89,8 +89,8 @@ class SystemFunctions:
 class HotkeyConfig:
     def __init__(self, master):
         self.master = master
-        self.master.title("Hotkey Configuration")
-
+        self.update_title()
+        
         self.notebook = ttk.Notebook(master)
         self.notebook.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
 
@@ -119,6 +119,10 @@ class HotkeyConfig:
         self.hotkey_listener = None
         self.current_keys = set()
         self.start_hotkey_listener()
+
+    def update_title(self):
+        char_name = GetName(Self())
+        self.master.title(f"Hotkey Configuration - {char_name}")
 
     def load_functions(self):
         for func_name, func in inspect.getmembers(SystemFunctions, predicate=inspect.isfunction):
@@ -196,6 +200,7 @@ class HotkeyConfig:
             json.dump(self.config, f)
         messagebox.showinfo("Success", "Configuration saved successfully!")
         self.start_hotkey_listener()  # Restart the listener with new configuration
+        self.update_title()  # Update the title in case the character name has changed
 
     def assign_hotkey(self, item=None):
         if item is None:
