@@ -156,7 +156,8 @@ class HotkeyManager:
         }
         with open('hotkey_config.json', 'w') as f:
             json.dump(config, f)
-        messagebox.showinfo("Save", "Configuration saved successfully!")
+        # Remove the messagebox.showinfo line
+        debug("Configuration saved successfully!", "success")
 
     def start_hotkey_listener(self):
         if self.hotkey_listener:

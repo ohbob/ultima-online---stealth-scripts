@@ -18,7 +18,6 @@ class PetsTab:
 
         ttk.Button(button_frame, text="Add", command=self.add_pet).pack(side=tk.LEFT, padx=5)
         ttk.Button(button_frame, text="Remove", command=self.remove_pet).pack(side=tk.LEFT, padx=5)
-        ttk.Button(button_frame, text="Save", command=self.save_pets).pack(side=tk.LEFT, padx=5)
 
     def load_pets(self, pets):
         self.tree.delete(*self.tree.get_children())
@@ -32,6 +31,7 @@ class PetsTab:
             pet_name = GetName(pet_id)
             self.tree.insert('', 'end', values=(pet_id, pet_name))
             self.manager.debug(f"Added pet: {pet_name} (ID: {pet_id})", "success")
+            self.save_pets()
         else:
             self.manager.debug("Failed to get pet ID.", "error")
 
@@ -41,10 +41,10 @@ class PetsTab:
             pet_id, pet_name = self.tree.item(selected[0])['values']
             self.tree.delete(selected[0])
             self.manager.debug(f"Removed pet: {pet_name} (ID: {pet_id})", "info")
+            self.save_pets()
 
     def save_pets(self):
         pets = [(self.tree.item(child)['values'][0], self.tree.item(child)['values'][1]) 
                 for child in self.tree.get_children()]
         self.manager.pets = pets
         self.manager.save_config()
-        messagebox.showinfo("Pets", "Pets list saved successfully!")

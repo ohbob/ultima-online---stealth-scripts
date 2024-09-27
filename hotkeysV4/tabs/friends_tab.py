@@ -18,7 +18,6 @@ class FriendsTab:
 
         ttk.Button(button_frame, text="Add", command=self.add_friend).pack(side=tk.LEFT, padx=5)
         ttk.Button(button_frame, text="Remove", command=self.remove_friend).pack(side=tk.LEFT, padx=5)
-        ttk.Button(button_frame, text="Save", command=self.save_friends).pack(side=tk.LEFT, padx=5)
 
     def load_friends(self, friends):
         self.tree.delete(*self.tree.get_children())
@@ -32,6 +31,7 @@ class FriendsTab:
             friend_name = GetName(friend_id)
             self.tree.insert('', 'end', values=(friend_id, friend_name))
             self.manager.debug(f"Added friend: {friend_name} (ID: {friend_id})", "success")
+            self.save_friends()
         else:
             self.manager.debug("Failed to get friend ID.", "error")
 
@@ -41,10 +41,10 @@ class FriendsTab:
             friend_id, friend_name = self.tree.item(selected[0])['values']
             self.tree.delete(selected[0])
             self.manager.debug(f"Removed friend: {friend_name} (ID: {friend_id})", "info")
+            self.save_friends()
 
     def save_friends(self):
         friends = [(self.tree.item(child)['values'][0], self.tree.item(child)['values'][1]) 
                    for child in self.tree.get_children()]
         self.manager.friends = friends
         self.manager.save_config()
-        messagebox.showinfo("Friends", "Friends list saved successfully!")
