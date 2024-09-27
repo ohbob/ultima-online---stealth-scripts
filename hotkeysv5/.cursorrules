@@ -1,0 +1,23 @@
+1. Separate Concerns
+UI Code: Should be in the ui module.
+Core Logic: Should be in the core module.
+Entry Point: Should be in the main script (e.g., hotkey_manager.py).
+2. File Structure
+Main Script: Contains the entry point of the application.
+Core Module: Contains the main logic and controllers.
+UI Module: Contains the user interface components.
+3. Import Statements
+Import only what is necessary for the file.
+Keep imports organized (standard library imports, third-party imports, local imports).
+4. Function Definitions
+Define functions and classes in their respective modules.
+Keep the main script clean and focused on initializing and running the application.
+5. Initialization
+Initialize the main components in the main script.
+Pass necessary dependencies through constructors or method parameters.
+6. Avoid Circular Dependencies
+Ensure that modules do not import each other in a way that creates a loop.
+Example Breakdown
+Main Script (hotkey_manager.py)
+Purpose: Initialize and run the application.
+Contains: Entry point, main function, and initialization of main components.
