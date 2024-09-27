@@ -1,6 +1,5 @@
 import tkinter as tk
-from tkinter import ttk, messagebox
-from py_stealth import *
+from tkinter import ttk
 
 class FriendsTab:
     def __init__(self, notebook, manager):
@@ -28,7 +27,12 @@ class FriendsTab:
         self.manager.debug("Please select a friend in the game.", "info")
         friend_id = self.manager.getTargetID()
         if friend_id:
-            friend_name = GetName(friend_id)
+            friend_name = self.manager.GetName(friend_id)
+            # Check if the friend already exists in the list
+            for item in self.tree.get_children():
+                if self.tree.item(item)['values'][0] == friend_id:
+                    self.manager.debug(f"Friend {friend_name} (ID: {friend_id}) already exists in the list.", "warning")
+                    return
             self.tree.insert('', 'end', values=(friend_id, friend_name))
             self.manager.debug(f"Added friend: {friend_name} (ID: {friend_id})", "success")
             self.save_friends()
@@ -46,5 +50,4 @@ class FriendsTab:
     def save_friends(self):
         friends = [(self.tree.item(child)['values'][0], self.tree.item(child)['values'][1]) 
                    for child in self.tree.get_children()]
-        self.manager.friends = friends
-        self.manager.save_config()
+        self.manager.update_friends_list(friends)

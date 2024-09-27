@@ -1,6 +1,5 @@
 import tkinter as tk
-from tkinter import ttk, messagebox
-from py_stealth import *
+from tkinter import ttk
 
 class PetsTab:
     def __init__(self, notebook, manager):
@@ -28,7 +27,12 @@ class PetsTab:
         self.manager.debug("Please select a pet in the game.", "info")
         pet_id = self.manager.getTargetID()
         if pet_id:
-            pet_name = GetName(pet_id)
+            pet_name = self.manager.GetName(pet_id)
+            # Check if the pet already exists in the list
+            for item in self.tree.get_children():
+                if self.tree.item(item)['values'][0] == pet_id:
+                    self.manager.debug(f"Pet {pet_name} (ID: {pet_id}) already exists in the list.", "warning")
+                    return
             self.tree.insert('', 'end', values=(pet_id, pet_name))
             self.manager.debug(f"Added pet: {pet_name} (ID: {pet_id})", "success")
             self.save_pets()
@@ -46,5 +50,4 @@ class PetsTab:
     def save_pets(self):
         pets = [(self.tree.item(child)['values'][0], self.tree.item(child)['values'][1]) 
                 for child in self.tree.get_children()]
-        self.manager.pets = pets
-        self.manager.save_config()
+        self.manager.update_pets_list(pets)

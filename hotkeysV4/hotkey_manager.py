@@ -131,11 +131,22 @@ class HotkeyManager:
 
     def populate_tree_views(self):
         # Populate scripts tab
+        self.scripts_tab.tree.delete(*self.scripts_tab.tree.get_children())  # Clear existing items
+        
+        # Add toggle_all_hotkeys and toggle_auto_functions to the scripts tab
+        self.scripts_tab.tree.insert('', 'end', values=('toggle_all_hotkeys', self.hotkeys.get('toggle_all_hotkeys', '')))
+        self.scripts_tab.tree.insert('', 'end', values=('toggle_auto_functions', self.hotkeys.get('toggle_auto_functions', '')))
+        
         for func_name in self.functions:
             hotkey = self.hotkeys.get(func_name, '')
             self.scripts_tab.tree.insert('', 'end', values=(func_name, hotkey))
 
+        # Add add_friend and add_pet to the scripts tab
+        self.scripts_tab.tree.insert('', 'end', values=('add_friend', self.hotkeys.get('add_friend', '')))
+        self.scripts_tab.tree.insert('', 'end', values=('add_pet', self.hotkeys.get('add_pet', '')))
+
         # Populate auto functions tab
+        self.auto_functions_tab.tree.delete(*self.auto_functions_tab.tree.get_children())  # Clear existing items
         for func_name in self.autofunctions:
             auto_func_data = self.auto_functions.get(func_name, {})
             enabled = 'Yes' if auto_func_data.get('enabled', False) else 'No'
@@ -221,6 +232,12 @@ class HotkeyManager:
         debug(f"Attempting to activate function: {func_name}", "info")
         if func_name == 'toggle_all_hotkeys':
             self.toggle_all_hotkeys()
+        elif func_name == 'toggle_auto_functions':
+            self.toggle_auto_functions()
+        elif func_name == 'add_friend':
+            self.friends_tab.add_friend()
+        elif func_name == 'add_pet':
+            self.pets_tab.add_pet()
         elif func_name in self.functions:
             if self.hotkeys_enabled:
                 debug(f"Calling function: {func_name}", "info")
@@ -244,6 +261,11 @@ class HotkeyManager:
         self.hotkeys_enabled = not self.hotkeys_enabled
         status = "enabled" if self.hotkeys_enabled else "disabled"
         debug(f"All hotkeys are now {status}", "info")
+
+    def toggle_auto_functions(self):
+        self.auto_functions_enabled = not self.auto_functions_enabled
+        status = "enabled" if self.auto_functions_enabled else "disabled"
+        debug(f"Auto functions are now {status}", "info")
 
     def assign_hotkey(self, item, tree):
         func = tree.item(item, 'values')[0]
@@ -307,6 +329,17 @@ class HotkeyManager:
 
     def get_friends_list(self):
         return self.friends
+
+    def update_friends_list(self, new_friends):
+        self.friends = new_friends
+        self.save_config()
+
+    def update_pets_list(self, new_pets):
+        self.pets = new_pets
+        self.save_config()
+
+    def GetName(self, object_id):
+        return GetName(object_id)
 
     def launch_selected_function(self):
         selected = self.scripts_tab.tree.selection()
