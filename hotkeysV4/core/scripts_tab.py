@@ -39,10 +39,11 @@ class ScriptsTab:
             display_name = ' '.join(func_name.split('_')).title()
             self.tree.insert(system_id, 'end', values=(func_name, hotkeys.get(func_name, '')))
 
-        # Create "Scripts" section
-        scripts_id = self.tree.insert('', 'end', text='Scripts', open=True)
-        for func_name in regular_functions:
-            self.tree.insert(scripts_id, 'end', values=(func_name, hotkeys.get(func_name, '')))
+        # Create sections for each category in regular_functions
+        for category, functions in regular_functions.items():
+            category_id = self.tree.insert('', 'end', text=category.replace('_', ' ').title(), open=True)
+            for func_name in functions:
+                self.tree.insert(category_id, 'end', values=(func_name, hotkeys.get(func_name, '')))
 
     def assign_hotkey(self):
         selected = self.tree.selection()

@@ -15,10 +15,10 @@ parent_dir = os.path.dirname(current_dir)
 sys.path.append(parent_dir)
 
 # Use absolute imports for the tab modules
-from hotkeysV4.tabs.scripts_tab import ScriptsTab
-from hotkeysV4.tabs.auto_functions_tab import AutoFunctionsTab
-from hotkeysV4.tabs.friends_tab import FriendsTab
-from hotkeysV4.tabs.pets_tab import PetsTab
+from hotkeysV4.core.scripts_tab import ScriptsTab
+from hotkeysV4.core.auto_functions_tab import AutoFunctionsTab
+from hotkeysV4.core.friends_tab import FriendsTab
+from hotkeysV4.core.pets_tab import PetsTab
 
 # Move the standalone debug function outside the class
 def debug(message: str, level: str = "info", client=True) -> None:
@@ -49,7 +49,9 @@ class HotkeyManager:
         self.auto_functions_enabled = True
         self.hotkey_listener = None
         self.system_functions = {}
-        self.discover_system_functions()
+        self.discovered_functions = {}
+        self.flattened_functions = {}
+        self.discover_all_functions()
         self.create_widgets()
         self.load_config()
         self.start_hotkey_listener()
@@ -112,10 +114,6 @@ class HotkeyManager:
                 module_path = os.path.join(path, filename)
                 spec = importlib.util.spec_from_file_location(module_name, module_path)
                 module = importlib.util.module_from_spec(spec)
-
-                # Add py_stealth functions to the module's global namespace
-                module.__dict__.update({name: func for name, func in globals().items() if callable(func) and not name.startswith('__')})
-                
                 spec.loader.exec_module(module)
                 
                 if hasattr(module, 'main'):
@@ -130,19 +128,38 @@ class HotkeyManager:
                             'hotkey': ''
                         }
 
-    def discover_system_functions(self):
+    def discover_all_functions(self):
         base_path = os.path.dirname(os.path.abspath(__file__))
-        system_functions_path = os.path.join(base_path, 'system_functions')
-        self.discover_modules(system_functions_path, self.system_functions, is_auto=False)
-        debug(f"Discovered system functions: {list(self.system_functions.keys())}", "info")
+        autodiscovery_path = os.path.join(base_path, 'autodiscovery')
+        for root, dirs, files in os.walk(autodiscovery_path):
+            # Exclude __pycache__ directories
+            dirs[:] = [d for d in dirs if d != '__pycache__']
+            
+            relative_path = os.path.relpath(root, autodiscovery_path)
+            if relative_path == '.':
+                continue
+            category = relative_path.replace(os.path.sep, '_')
+            self.discovered_functions[category] = {}
+            self.discover_modules(root, self.discovered_functions[category], is_auto=False)
+    
+        # Flatten the discovered functions for easier access
+        self.flattened_functions = {}
+        for category, functions in self.discovered_functions.items():
+            for func_name, func in functions.items():
+                self.flattened_functions[f"{category}_{func_name}"] = func
+    
+        debug(f"Discovered functions: {self.flattened_functions.keys()}", "info")
 
     def populate_tree_views(self):
-        # Populate scripts tab
         all_hotkeys = self.hotkeys.copy()
-        all_hotkeys.update({func_name: self.hotkeys.get(func_name, '') for func_name in self.system_functions})
-        self.scripts_tab.load_hotkeys(all_hotkeys, self.system_functions.keys(), self.functions.keys())
+        for category, functions in self.discovered_functions.items():
+            all_hotkeys.update({f"{category}_{func}": self.hotkeys.get(f"{category}_{func}", '') for func in functions})
+        
+        system_functions = {k.split('_', 1)[1]: v for k, v in self.flattened_functions.items() if k.startswith('system_functions_')}
+        regular_functions = {k.split('_', 1)[0]: {k.split('_', 1)[1]: v} for k, v in self.flattened_functions.items() if not k.startswith('system_functions_')}
+        
+        self.scripts_tab.load_hotkeys(all_hotkeys, system_functions, regular_functions)
 
-        # Populate auto functions tab
         self.auto_functions_tab.tree.delete(*self.auto_functions_tab.tree.get_children())  # Clear existing items
         for func_name in self.autofunctions:
             auto_func_data = self.auto_functions.get(func_name, {})
@@ -151,7 +168,6 @@ class HotkeyManager:
             hotkey = auto_func_data.get('hotkey', '')
             self.auto_functions_tab.tree.insert('', 'end', values=(func_name, enabled, threshold, hotkey))
 
-        # Populate friends and pets tabs
         self.friends_tab.load_friends(self.friends)
         self.pets_tab.load_pets(self.pets)
 
@@ -164,7 +180,6 @@ class HotkeyManager:
         }
         with open('hotkey_config.json', 'w') as f:
             json.dump(config, f)
-        # Remove the messagebox.showinfo line
         debug("Configuration saved successfully!", "success")
 
     def start_hotkey_listener(self):
@@ -235,27 +250,27 @@ class HotkeyManager:
                 self.toggle_auto_functions()
         elif not self.hotkeys_enabled:
             debug("Hotkeys are currently disabled", "warning")
-        elif func_name in self.system_functions:
-            debug(f"Calling system function: {func_name}", "info")
-            try:
-                self.system_functions[func_name](self)
-            except Exception as e:
-                debug(f"Error calling system function {func_name}: {str(e)}", "fail")
-        elif func_name in self.functions:
-            debug(f"Calling function: {func_name}", "info")
-            try:
-                func = self.functions[func_name]
-                func(self)  # Always pass self as the argument
-            except Exception as e:
-                debug(f"Error calling function {func_name}: {str(e)}", "fail")
-        elif func_name in self.autofunctions:
-            if self.auto_functions_enabled:
-                debug(f"Toggling auto function: {func_name}", "info")
-                self.toggle_auto_function(func_name)
-            else:
-                debug("Auto functions are currently disabled", "warning")
         else:
-            debug(f"Function {func_name} not found", "warning")
+            # Find the full function name in flattened_functions
+            full_func_name = next((name for name in self.flattened_functions if name.endswith(f"_{func_name}")), None)
+            if full_func_name:
+                debug(f"Calling discovered function: {full_func_name}", "info")
+                try:
+                    func = self.flattened_functions[full_func_name]
+                    if 'manager' in func.__code__.co_varnames:
+                        func(self)
+                    else:
+                        func()
+                except Exception as e:
+                    debug(f"Error calling discovered function {full_func_name}: {str(e)}", "fail")
+            elif func_name in self.autofunctions:
+                if self.auto_functions_enabled:
+                    debug(f"Toggling auto function: {func_name}", "info")
+                    self.toggle_auto_function(func_name)
+                else:
+                    debug("Auto functions are currently disabled", "warning")
+            else:
+                debug(f"Function {func_name} not found", "warning")
 
     def toggle_all_hotkeys(self):
         self.hotkeys_enabled = not self.hotkeys_enabled

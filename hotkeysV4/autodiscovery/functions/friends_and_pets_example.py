@@ -1,5 +1,3 @@
-from py_stealth import *
-
 def debug(message, level="info"):
     print(f"[{level.upper()}] {message}")
 
