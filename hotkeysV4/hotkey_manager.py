@@ -46,7 +46,7 @@ class HotkeyManager:
         self.functions = {}
         self.autofunctions = {}
         self.hotkeys_enabled = True
-        self.auto_functions_enabled = True
+        self.auto_functions_enabled = False
         self.hotkey_listener = None
         self.system_functions = {}
         self.discovered_functions = {}
@@ -65,18 +65,21 @@ class HotkeyManager:
         self.friends_tab = FriendsTab(self.notebook, self)
         self.pets_tab = PetsTab(self.notebook, self)
 
+        # Set the auto_functions_tab attribute
+        self.auto_functions_tab = self.auto_functions_tab
+
     def load_config(self):
         try:
             with open('hotkey_config.json', 'r') as f:
                 config = json.load(f)
                 self.hotkeys = config.get('hotkeys', {})
                 self.auto_functions = config.get('auto_functions', {})
+                self.auto_function_order = config.get('auto_function_order', [])
                 self.friends = config.get('friends', [])
                 self.pets = config.get('pets', [])
+                self.activation_cooldown = config.get('activation_cooldown', 0.3)
 
             self.discover_functions()
-            
-            # Populate tree views after discovery
             self.populate_tree_views()
 
         except FileNotFoundError:
@@ -120,7 +123,9 @@ class HotkeyManager:
                         # Initialize auto function in self.auto_functions
                         self.auto_functions[module_name] = {
                             'enabled': False,
-                            'threshold': 0,
+                            'variable1': '',
+                            'variable2': '',
+                            'variable3': '',
                             'hotkey': ''
                         }
 
@@ -156,12 +161,29 @@ class HotkeyManager:
         self.scripts_tab.load_hotkeys(all_hotkeys, system_functions, regular_functions)
 
         self.auto_functions_tab.tree.delete(*self.auto_functions_tab.tree.get_children())  # Clear existing items
-        for func_name in self.autofunctions:
-            auto_func_data = self.auto_functions.get(func_name, {})
-            enabled = 'Yes' if auto_func_data.get('enabled', False) else 'No'
-            threshold = auto_func_data.get('threshold', '0')
-            hotkey = auto_func_data.get('hotkey', '')
-            self.auto_functions_tab.tree.insert('', 'end', values=(func_name, enabled, threshold, hotkey))
+        for func_name in self.auto_function_order:
+            if func_name in self.auto_functions:
+                auto_func_data = self.auto_functions[func_name]
+                enabled = auto_func_data.get('enabled', False)
+                var1 = auto_func_data.get('variable1', '')
+                var2 = auto_func_data.get('variable2', '')
+                var3 = auto_func_data.get('variable3', '')
+                hotkey = auto_func_data.get('hotkey', '')
+                tag = 'enabled' if enabled else 'disabled'
+                self.auto_functions_tab.tree.insert('', 'end', values=(func_name, var1, var2, var3, hotkey, 'True' if enabled else 'False'), tags=(tag,))
+
+        # Add any new functions that are not in the order
+        for func_name in self.auto_functions:
+            if func_name not in self.auto_function_order:
+                auto_func_data = self.auto_functions[func_name]
+                enabled = auto_func_data.get('enabled', False)
+                var1 = auto_func_data.get('variable1', '')
+                var2 = auto_func_data.get('variable2', '')
+                var3 = auto_func_data.get('variable3', '')
+                hotkey = auto_func_data.get('hotkey', '')
+                tag = 'enabled' if enabled else 'disabled'
+                self.auto_functions_tab.tree.insert('', 'end', values=(func_name, var1, var2, var3, hotkey, 'True' if enabled else 'False'), tags=(tag,))
+                self.auto_function_order.append(func_name)
 
         self.friends_tab.load_friends(self.friends)
         self.pets_tab.load_pets(self.pets)
@@ -176,16 +198,19 @@ class HotkeyManager:
                     display_text = f"{func_name} ({hotkey})" if hotkey else func_name
                     self.scripts_tab.tree.insert(category_id, 'end', text=display_text)
 
+        self.auto_functions_tab.update_toggle_button()
+
     def save_config(self):
         config = {
             'hotkeys': self.hotkeys,
             'auto_functions': self.auto_functions,
+            'auto_function_order': self.auto_function_order,
             'friends': self.friends,
-            'pets': self.pets
+            'pets': self.pets,
+            'activation_cooldown': self.activation_cooldown
         }
         with open('hotkey_config.json', 'w') as f:
             json.dump(config, f)
-        debug("Configuration saved successfully!", "success")
 
     def start_hotkey_listener(self):
         if self.hotkey_listener:
@@ -251,7 +276,7 @@ class HotkeyManager:
             if func_name == 'toggle_all_hotkeys':
                 self.toggle_all_hotkeys()
             else:
-                self.toggle_auto_functions()
+                self.toggle_all_auto_functions()
         elif not self.hotkeys_enabled:
             debug("Hotkeys are currently disabled", "warning")
         else:
@@ -281,13 +306,19 @@ class HotkeyManager:
         status = "enabled" if self.hotkeys_enabled else "disabled"
         debug(f"All hotkeys are now {status}", "info")
 
-    def toggle_auto_functions(self):
+    def toggle_all_auto_functions(self):
         self.auto_functions_enabled = not self.auto_functions_enabled
         status = "enabled" if self.auto_functions_enabled else "disabled"
-        debug(f"Auto functions are now {status}", "info")
+        self.debug(f"All auto functions are now {status}", "info")
+        
+        # Update the button state in the AutoFunctionsTab
+        if hasattr(self, 'auto_functions_tab'):
+            self.auto_functions_tab.update_toggle_button()
+        
+        return self.auto_functions_enabled
 
     def assign_hotkey(self, item, tree):
-        func = tree.item(item, 'text')
+        func = tree.item(item, 'values')[0]  # Get function name from the first column
         self.master.title(f"Press new hotkey for {func}")
         self.current_hotkey = set()
         self.current_item = item
@@ -305,15 +336,13 @@ class HotkeyManager:
         if self.listening_for_hotkey:
             self.listening_for_hotkey = False
             hotkey = '+'.join(sorted(self.current_hotkey))
-            func = self.current_tree.item(self.current_item, 'text').split(' (')[0]
+            func = self.current_tree.item(self.current_item, 'values')[0]
             if self.current_tree == self.auto_functions_tab.tree:
-                values = self.current_tree.item(self.current_item, 'values')
-                if len(values) == 4:
-                    self.current_tree.item(self.current_item, values=(func, values[1], values[2], hotkey))
+                values = list(self.current_tree.item(self.current_item, 'values'))
+                values[4] = hotkey  # Update hotkey in the 5th column
+                self.current_tree.item(self.current_item, values=values)
                 self.auto_functions[func]['hotkey'] = hotkey
             else:
-                display_text = f"{func} ({hotkey})"
-                self.current_tree.item(self.current_item, text=display_text)
                 self.hotkeys[func] = hotkey
             self.master.title("Hotkey Manager")
             self.master.unbind('<KeyPress>')
@@ -335,14 +364,55 @@ class HotkeyManager:
             return key
 
     def run(self):
+        # Start the auto functions loop in a separate thread
+        auto_functions_thread = threading.Thread(target=self.run_auto_functions, daemon=True)
+        auto_functions_thread.start()
+
         self.master.mainloop()
 
     def toggle_auto_function(self, func_name):
         if func_name in self.auto_functions:
             self.auto_functions[func_name]['enabled'] = not self.auto_functions[func_name].get('enabled', False)
-            status = "enabled" if self.auto_functions[func_name]['enabled'] else "disabled"
-            debug(f"Auto function {func_name} is now {status}", "info")
-            self.auto_functions_tab.load_auto_functions(self.auto_functions)  # Refresh the display
+            enabled = self.auto_functions[func_name]['enabled']
+            self.auto_functions_tab.update_enabled_status(func_name, enabled)
+            
+            if enabled and not self.auto_functions_enabled:
+                self.debug(f"Auto function {func_name} enabled, but auto functions are globally disabled", "warning")
+            elif enabled:
+                self.debug(f"Auto function {func_name} enabled and will run when conditions are met", "info")
+            else:
+                self.debug(f"Auto function {func_name} disabled", "info")
+            
+            self.save_config()
+
+    def start_auto_function(self, func_name):
+        if func_name in self.auto_functions:
+            auto_func_data = self.auto_functions[func_name]
+            threshold = auto_func_data.get('threshold', 0)
+            func = self.autofunctions.get(func_name)
+            if func:
+                thread = threading.Thread(target=self.run_auto_function, args=(func_name, func, threshold), daemon=True)
+                thread.start()
+
+    def stop_auto_function(self, func_name):
+        if func_name in self.auto_functions:
+            auto_func_data = self.auto_functions[func_name]
+            if 'thread' in auto_func_data:
+                thread = auto_func_data['thread']
+                if thread.is_alive():
+                    thread.join()
+                del auto_func_data['thread']
+
+    def run_auto_function(self, func_name, func, threshold):
+        while self.auto_functions[func_name].get('enabled', False):
+            try:
+                result = func(self)
+                if result >= threshold:
+                    debug(f"Auto function {func_name} triggered with result: {result}", "info")
+                    # Add any additional actions here
+            except Exception as e:
+                debug(f"Error running auto function {func_name}: {str(e)}", "fail")
+            time.sleep(1)  # Adjust the sleep duration as needed
 
     def get_pets_list(self):
         return self.pets
@@ -400,18 +470,37 @@ class HotkeyManager:
         else:
             debug(f"No hotkey assigned to {func}", "warning")
 
-def main_loop():
-    while True:
-        # Add any continuous checks or operations here
-        time.sleep(0.1)  # Small delay to prevent excessive CPU usage
+    def update_auto_function_order(self, new_order):
+        self.auto_function_order = new_order
+        self.save_config()
+
+    def run_auto_functions(self):
+        while True:
+            if self.auto_functions_enabled:
+                for func_name in self.auto_function_order:
+                    if func_name in self.auto_functions and self.auto_functions[func_name].get('enabled', False):
+                        func = self.autofunctions.get(func_name)
+                        if func:
+                            try:
+                                var1 = self.auto_functions[func_name].get('variable1', '')
+                                var2 = self.auto_functions[func_name].get('variable2', '')
+                                var3 = self.auto_functions[func_name].get('variable3', '')
+                                self.debug(f"Executing {func_name} with variables: {var1}, {var2}, {var3}", "info")
+                                result = func(self, var1, var2, var3)
+                                if result:
+                                    self.debug(f"Auto function {func_name} executed with result: {result}", "info")
+                            except Exception as e:
+                                self.debug(f"Error in auto function {func_name}: {str(e)}", "fail")
+            time.sleep(self.activation_cooldown)
+
+    def update_auto_function_variable(self, func_name, var_index, value):
+        if func_name in self.auto_functions:
+            self.auto_functions[func_name][f'variable{var_index}'] = value
+            self.save_config()
 
 def main():
     root = tk.Tk()
     app = HotkeyManager(root)
-    
-    # Start the main loop in a separate thread
-    main_thread = threading.Thread(target=main_loop, daemon=True)
-    main_thread.start()
     
     app.run()
 

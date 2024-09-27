@@ -50,7 +50,14 @@ class ScriptsTab:
     def assign_hotkey(self):
         selected = self.tree.selection()
         if selected:
-            self.manager.assign_hotkey(selected[0], self.tree)
+            item = selected[0]
+            values = self.tree.item(item, 'values')
+            if values:
+                self.manager.assign_hotkey(item, self.tree)
+            else:
+                self.manager.debug("Error: No values found for the selected item", "error")
+        else:
+            self.manager.debug("Please select a function to assign a hotkey", "warning")
 
     # Remove the on_hotkey_press method
 
