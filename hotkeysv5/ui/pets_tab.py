@@ -8,8 +8,12 @@ class PetsTab(ttk.Frame):
         self.create_widgets()
 
     def create_widgets(self):
-        self.pets_listbox = tk.Listbox(self)
-        self.pets_listbox.pack(fill=tk.BOTH, expand=True)
+        self.tree = ttk.Treeview(self, columns=('Name', 'ID'), show='headings')
+        self.tree.heading('Name', text='Name')
+        self.tree.heading('ID', text='ID')
+        self.tree.column('Name', width=150)
+        self.tree.column('ID', width=100)
+        self.tree.pack(fill=tk.BOTH, expand=True)
 
         button_frame = ttk.Frame(self)
         button_frame.pack(fill=tk.X, padx=5, pady=5)
@@ -19,25 +23,25 @@ class PetsTab(ttk.Frame):
 
         self.remove_button = ttk.Button(button_frame, text="Remove Pet", command=self.remove_pet)
         self.remove_button.pack(side=tk.LEFT, padx=5)
+        self.clear_button = ttk.Button(button_frame, text="Clear Pets", command=self.clear_pets)
+        self.clear_button.pack(side=tk.RIGHT, padx=5)
 
-        self.clear_button = ttk.Button(button_frame, text="Clear List", command=self.clear_list)
-        self.clear_button.pack(side=tk.LEFT, padx=5)
-
-    def add_pet(self):
-        self.main_controller.add_pet()
-
-    def remove_pet(self):
-        selected = self.pets_listbox.curselection()
-        if selected:
-            pet = self.pets_listbox.get(selected[0])
-            self.main_controller.remove_pet(pet)
-
-    def clear_list(self):
-        self.main_controller.clear_pets()
-        self.populate_list()
-
-    def populate_list(self):
-        self.pets_listbox.delete(0, tk.END)
+    def populate_tree(self):
+        self.tree.delete(*self.tree.get_children())
         pets = self.main_controller.get_pets()
         for pet in pets:
-            self.pets_listbox.insert(tk.END, pet)
+            self.tree.insert('', 'end', values=(pet['name'], pet['id']))
+
+    def add_pet(self):
+        # Implement add pet functionality
+        pass
+
+    def remove_pet(self):
+        # Implement remove pet functionality
+        pass
+
+    def clear_pets(self):
+        # Implement clear pets functionality
+        pass
+
+    # ... (other methods as needed)

@@ -11,6 +11,7 @@ class MainUI:
         self.main_controller = main_controller
         self.root.title("Hotkey Manager v5")
         self.create_widgets()
+        self.main_controller.discover_all_functions()  
 
     def create_widgets(self):
         self.notebook = ttk.Notebook(self.root)
