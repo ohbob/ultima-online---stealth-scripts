@@ -1,6 +1,6 @@
 def debug(message, level="info"):
     print(f"[{level.upper()}] {message}")
 
-def main():
+def main(manager=None):
     debug("Example function called", "info")
     UOSay("Yes sir")

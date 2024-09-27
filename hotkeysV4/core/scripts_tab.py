@@ -36,7 +36,6 @@ class ScriptsTab:
         # Create "System Functions" section
         system_id = self.tree.insert('', 'end', text='System Functions', open=True)
         for func_name in system_functions:
-            display_name = ' '.join(func_name.split('_')).title()
             self.tree.insert(system_id, 'end', values=(func_name, hotkeys.get(func_name, '')))
 
         # Create sections for each category in regular_functions

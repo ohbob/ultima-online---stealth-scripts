@@ -56,18 +56,6 @@ class HotkeyManager:
         self.load_config()
         self.start_hotkey_listener()
 
-    # Add the debug method to the HotkeyManager class
-    def debug(self, message: str, level: str = "info", client=True) -> None:
-        color_map = {
-            "success": 60,  # Green
-            "fail": 30,     # Red
-            "info": 10,      # Blue
-            "warning": 40   # Orange
-        }
-        if client:
-            ClientPrintEx(Self(), color_map[level], 1, f"* {message.upper()} *")
-        print(message)
-
     def create_widgets(self):
         self.notebook = ttk.Notebook(self.master)
         self.notebook.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
@@ -109,11 +97,15 @@ class HotkeyManager:
             return
 
         for filename in os.listdir(path):
-            if filename.endswith('.py'):
+            if filename.endswith('.py') and not filename.startswith('__'):
                 module_name = filename[:-3]
                 module_path = os.path.join(path, filename)
                 spec = importlib.util.spec_from_file_location(module_name, module_path)
                 module = importlib.util.module_from_spec(spec)
+                
+                # Add py_stealth functions to the module's global namespace
+                module.__dict__.update({name: func for name, func in globals().items() if callable(func) and not name.startswith('__')})
+                
                 spec.loader.exec_module(module)
                 
                 if hasattr(module, 'main'):
@@ -132,7 +124,6 @@ class HotkeyManager:
         base_path = os.path.dirname(os.path.abspath(__file__))
         autodiscovery_path = os.path.join(base_path, 'autodiscovery')
         for root, dirs, files in os.walk(autodiscovery_path):
-            # Exclude __pycache__ directories
             dirs[:] = [d for d in dirs if d != '__pycache__']
             
             relative_path = os.path.relpath(root, autodiscovery_path)
@@ -148,15 +139,15 @@ class HotkeyManager:
             for func_name, func in functions.items():
                 self.flattened_functions[f"{category}_{func_name}"] = func
     
-        debug(f"Discovered functions: {self.flattened_functions.keys()}", "info")
+        debug(f"Discovered functions: {list(self.flattened_functions.keys())}", "info")
 
     def populate_tree_views(self):
         all_hotkeys = self.hotkeys.copy()
         for category, functions in self.discovered_functions.items():
-            all_hotkeys.update({f"{category}_{func}": self.hotkeys.get(f"{category}_{func}", '') for func in functions})
+            all_hotkeys.update({f"{func}": self.hotkeys.get(f"{func}", '') for func in functions})
         
-        system_functions = {k.split('_', 1)[1]: v for k, v in self.flattened_functions.items() if k.startswith('system_functions_')}
-        regular_functions = {k.split('_', 1)[0]: {k.split('_', 1)[1]: v} for k, v in self.flattened_functions.items() if not k.startswith('system_functions_')}
+        system_functions = self.discovered_functions.get('system_functions', {})
+        regular_functions = {k: v for k, v in self.discovered_functions.items() if k != 'system_functions'}
         
         self.scripts_tab.load_hotkeys(all_hotkeys, system_functions, regular_functions)
 
@@ -243,7 +234,6 @@ class HotkeyManager:
     def activate_function(self, func_name):
         debug(f"Attempting to activate function: {func_name}", "info")
         if func_name in ['toggle_all_hotkeys', 'toggle_auto_functions']:
-            # These functions should always work
             if func_name == 'toggle_all_hotkeys':
                 self.toggle_all_hotkeys()
             else:
@@ -251,19 +241,19 @@ class HotkeyManager:
         elif not self.hotkeys_enabled:
             debug("Hotkeys are currently disabled", "warning")
         else:
-            # Find the full function name in flattened_functions
-            full_func_name = next((name for name in self.flattened_functions if name.endswith(f"_{func_name}")), None)
-            if full_func_name:
-                debug(f"Calling discovered function: {full_func_name}", "info")
-                try:
-                    func = self.flattened_functions[full_func_name]
-                    if 'manager' in func.__code__.co_varnames:
-                        func(self)
-                    else:
-                        func()
-                except Exception as e:
-                    debug(f"Error calling discovered function {full_func_name}: {str(e)}", "fail")
-            elif func_name in self.autofunctions:
+            for category, functions in self.discovered_functions.items():
+                if func_name in functions:
+                    debug(f"Calling discovered function: {func_name}", "info")
+                    try:
+                        func = functions[func_name]
+                        if 'config' in func.__code__.co_varnames or 'manager' in func.__code__.co_varnames:
+                            func(self)
+                        else:
+                            func()
+                    except Exception as e:
+                        debug(f"Error calling discovered function {func_name}: {str(e)}", "fail")
+                    return
+            if func_name in self.autofunctions:
                 if self.auto_functions_enabled:
                     debug(f"Toggling auto function: {func_name}", "info")
                     self.toggle_auto_function(func_name)
@@ -373,6 +363,17 @@ class HotkeyManager:
                 item_id = response.get('ID', None)
                 return item_id
         return None
+
+    def debug(self, message: str, level: str = "info", client=True) -> None:
+        color_map = {
+            "success": 60,  # Green
+            "fail": 30,     # Red
+            "info": 10,      # Blue
+            "warning": 40   # Orange
+        }
+        if client:
+            ClientPrintEx(Self(), color_map[level], 1, f"* {message.upper()} *")
+        print(message)
 
 def main_loop():
     while True:
