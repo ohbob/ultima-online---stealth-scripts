@@ -106,7 +106,11 @@ class HotkeyManager:
                 # Add py_stealth functions to the module's global namespace
                 module.__dict__.update({name: func for name, func in globals().items() if callable(func) and not name.startswith('__')})
                 
-                spec.loader.exec_module(module)
+                try:
+                    spec.loader.exec_module(module)
+                except Exception as e:
+                    debug(f"Error loading module {module_name}: {str(e)}", "fail")
+                    continue
                 
                 if hasattr(module, 'main'):
                     target_dict[module_name] = module.main
@@ -161,6 +165,16 @@ class HotkeyManager:
 
         self.friends_tab.load_friends(self.friends)
         self.pets_tab.load_pets(self.pets)
+
+        # Create a hierarchical tree view structure
+        self.scripts_tab.tree.delete(*self.scripts_tab.tree.get_children())  # Clear existing items
+        for category, functions in self.discovered_functions.items():
+            if functions:  # Only add non-empty categories
+                category_id = self.scripts_tab.tree.insert('', 'end', text=category)
+                for func_name in functions:
+                    hotkey = self.hotkeys.get(func_name, '')
+                    display_text = f"{func_name} ({hotkey})" if hotkey else func_name
+                    self.scripts_tab.tree.insert(category_id, 'end', text=display_text)
 
     def save_config(self):
         config = {
@@ -273,7 +287,7 @@ class HotkeyManager:
         debug(f"Auto functions are now {status}", "info")
 
     def assign_hotkey(self, item, tree):
-        func = tree.item(item, 'values')[0]
+        func = tree.item(item, 'text')
         self.master.title(f"Press new hotkey for {func}")
         self.current_hotkey = set()
         self.current_item = item
@@ -291,14 +305,15 @@ class HotkeyManager:
         if self.listening_for_hotkey:
             self.listening_for_hotkey = False
             hotkey = '+'.join(sorted(self.current_hotkey))
-            func = self.current_tree.item(self.current_item, 'values')[0]
+            func = self.current_tree.item(self.current_item, 'text').split(' (')[0]
             if self.current_tree == self.auto_functions_tab.tree:
                 values = self.current_tree.item(self.current_item, 'values')
                 if len(values) == 4:
                     self.current_tree.item(self.current_item, values=(func, values[1], values[2], hotkey))
                 self.auto_functions[func]['hotkey'] = hotkey
             else:
-                self.current_tree.item(self.current_item, values=(func, hotkey))
+                display_text = f"{func} ({hotkey})"
+                self.current_tree.item(self.current_item, text=display_text)
                 self.hotkeys[func] = hotkey
             self.master.title("Hotkey Manager")
             self.master.unbind('<KeyPress>')
@@ -349,7 +364,7 @@ class HotkeyManager:
     def launch_selected_function(self):
         selected = self.scripts_tab.tree.selection()
         if selected:
-            func_name = self.scripts_tab.tree.item(selected[0])['values'][0]
+            func_name = self.scripts_tab.tree.item(selected[0], 'text').split(' (')[0]
             self.activate_function(func_name)
         else:
             debug("No function selected", "warning")
@@ -374,6 +389,16 @@ class HotkeyManager:
         if client:
             ClientPrintEx(Self(), color_map[level], 1, f"* {message.upper()} *")
         print(message)
+
+    def remove_hotkey(self, item, tree):
+        func = tree.item(item, 'text').split(' (')[0]
+        if func in self.hotkeys:
+            del self.hotkeys[func]
+            tree.item(item, text=func)  # Remove the hotkey from the display
+            self.save_config()
+            debug(f"Removed hotkey for {func}", "success")
+        else:
+            debug(f"No hotkey assigned to {func}", "warning")
 
 def main_loop():
     while True:

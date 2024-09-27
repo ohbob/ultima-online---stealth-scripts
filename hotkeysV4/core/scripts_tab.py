@@ -7,9 +7,7 @@ class ScriptsTab:
         notebook.add(self.frame, text="Scripts")
         self.manager = manager
 
-        self.tree = ttk.Treeview(self.frame, columns=('Function', 'Hotkey'), show='tree headings')
-        self.tree.heading('Function', text='Function')
-        self.tree.heading('Hotkey', text='Hotkey')
+        self.tree = ttk.Treeview(self.frame, show='tree')
         self.tree.pack(pady=10, padx=10, fill=tk.BOTH, expand=True)
 
         button_frame = ttk.Frame(self.frame)
@@ -36,13 +34,18 @@ class ScriptsTab:
         # Create "System Functions" section
         system_id = self.tree.insert('', 'end', text='System Functions', open=True)
         for func_name in system_functions:
-            self.tree.insert(system_id, 'end', values=(func_name, hotkeys.get(func_name, '')))
+            hotkey = hotkeys.get(f"system_functions_{func_name}", "")
+            display_text = f"{func_name} ({hotkey})" if hotkey else func_name
+            self.tree.insert(system_id, 'end', text=display_text)
 
         # Create sections for each category in regular_functions
         for category, functions in regular_functions.items():
             category_id = self.tree.insert('', 'end', text=category.replace('_', ' ').title(), open=True)
             for func_name in functions:
-                self.tree.insert(category_id, 'end', values=(func_name, hotkeys.get(func_name, '')))
+                full_func_name = f"{category}_{func_name}"
+                hotkey = hotkeys.get(full_func_name, "")
+                display_text = f"{func_name} ({hotkey})" if hotkey else func_name
+                self.tree.insert(category_id, 'end', text=display_text)
 
     def assign_hotkey(self):
         selected = self.tree.selection()
@@ -55,6 +58,8 @@ class ScriptsTab:
         selected = self.tree.selection()
         if selected:
             self.manager.remove_hotkey(selected[0], self.tree)
+        else:
+            messagebox.showwarning("Warning", "Please select a function to remove its hotkey.")
 
     def launch_function(self):
         self.manager.launch_selected_function()
@@ -75,7 +80,7 @@ class ScriptsTab:
         if self.loop_var.get():
             selected = self.tree.selection()
             if selected:
-                func = self.tree.item(selected[0])['values'][0]
+                func = self.tree.item(selected[0])['text'].split(' (')[0]
                 self.start_loop(func)
         else:
             self.stop_loop()
@@ -95,10 +100,12 @@ class ScriptsTab:
             self.manager.master.after_cancel(self.loop_id)
 
     def on_double_click(self, event):
-        item = self.tree.identify_row(event.y)
-        column = self.tree.identify_column(event.x)
-        if not item:
-            return
-        
-        if column == '#2':  # Hotkey column
-            self.assign_hotkey(item)
+        item = self.tree.identify('item', event.x, event.y)
+        if item:
+            self.assign_hotkey()
+
+    def get_full_path(self, item):
+        parent = self.tree.parent(item)
+        if parent:
+            return f"{self.tree.item(parent, 'text')}_{self.tree.item(item, 'text').split(' (')[0]}"
+        return self.tree.item(item, 'text').split(' (')[0]
