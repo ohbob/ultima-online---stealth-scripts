@@ -24,17 +24,17 @@ class PetsTab:
             self.tree.insert('', 'end', values=(pet_id, pet_name))
 
     def add_pet(self):
-        self.manager.debug("Please select a pet in the game.", "info")
+        self.manager.debug("Select a pet", "info", True)
         pet_id = self.manager.getTargetID()
         if pet_id:
             pet_name = self.manager.GetName(pet_id)
             # Check if the pet already exists in the list
             for item in self.tree.get_children():
                 if self.tree.item(item)['values'][0] == pet_id:
-                    self.manager.debug(f"Pet {pet_name} (ID: {pet_id}) already exists in the list.", "warning")
+                    self.manager.debug(f"Pet {pet_name} (ID: {pet_id}) already exists in the list.", "warning", True)
                     return
             self.tree.insert('', 'end', values=(pet_id, pet_name))
-            self.manager.debug(f"Added pet: {pet_name} (ID: {pet_id})", "success")
+            self.manager.debug(f"Added pet: {pet_name} (ID: {pet_id})", "success", True)
             self.save_pets()
         else:
             self.manager.debug("Failed to get pet ID.", "error")
@@ -44,7 +44,7 @@ class PetsTab:
         if selected:
             pet_id, pet_name = self.tree.item(selected[0])['values']
             self.tree.delete(selected[0])
-            self.manager.debug(f"Removed pet: {pet_name} (ID: {pet_id})", "info")
+            self.manager.debug(f"Removed pet: {pet_name} (ID: {pet_id})", "info", True)
             self.save_pets()
 
     def save_pets(self):

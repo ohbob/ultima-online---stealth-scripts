@@ -21,7 +21,7 @@ from hotkeysV4.core.friends_tab import FriendsTab
 from hotkeysV4.core.pets_tab import PetsTab
 
 # Move the standalone debug function outside the class
-def debug(message: str, level: str = "info", client=True) -> None:
+def debug(message: str, level: str = "info", client=False) -> None:
     color_map = {
         "success": 60,  # Green
         "fail": 30,     # Red
@@ -240,13 +240,13 @@ class HotkeyManager:
         for func, hotkey in self.hotkeys.items():
             hotkey_set = set(hotkey.lower().replace('<', '').replace('>', '').split('+'))
             if hotkey_set == current_hotkey:
-                debug(f"Hotkey match found for function: {func}", "info")
+                # debug(f"Hotkey match found for function: {func}", "info", False)
                 self.activate_function(func)
                 self.last_activation_time = current_time
                 break
 
     def activate_function(self, func_name):
-        debug(f"Attempting to activate function: {func_name}", "info")
+        # debug(f"Attempting to activate function: {func_name}", "info")
         if func_name in ['toggle_all_hotkeys', 'toggle_auto_functions']:
             if func_name == 'toggle_all_hotkeys':
                 self.toggle_all_hotkeys()
@@ -257,7 +257,7 @@ class HotkeyManager:
         else:
             for category, functions in self.discovered_functions.items():
                 if func_name in functions:
-                    debug(f"Calling discovered function: {func_name}", "info")
+                    # debug(f"Calling discovered function: {func_name}", "info")
                     try:
                         func = functions[func_name]
                         if 'config' in func.__code__.co_varnames or 'manager' in func.__code__.co_varnames:
@@ -379,7 +379,7 @@ class HotkeyManager:
                 return item_id
         return None
 
-    def debug(self, message: str, level: str = "info", client=True) -> None:
+    def debug(self, message: str, level: str = "info", client=False) -> None:
         color_map = {
             "success": 60,  # Green
             "fail": 30,     # Red

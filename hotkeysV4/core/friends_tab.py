@@ -24,17 +24,17 @@ class FriendsTab:
             self.tree.insert('', 'end', values=(friend_id, friend_name))
 
     def add_friend(self):
-        self.manager.debug("Please select a friend in the game.", "info")
+        self.manager.debug("Select a friend", "info", True)
         friend_id = self.manager.getTargetID()
         if friend_id:
             friend_name = self.manager.GetName(friend_id)
             # Check if the friend already exists in the list
             for item in self.tree.get_children():
                 if self.tree.item(item)['values'][0] == friend_id:
-                    self.manager.debug(f"Friend {friend_name} (ID: {friend_id}) already exists in the list.", "warning")
+                    self.manager.debug(f"Friend {friend_name} (ID: {friend_id}) already exists in the list.", "warning", True)
                     return
             self.tree.insert('', 'end', values=(friend_id, friend_name))
-            self.manager.debug(f"Added friend: {friend_name} (ID: {friend_id})", "success")
+            self.manager.debug(f"Added friend: {friend_name} (ID: {friend_id})", "success", True)
             self.save_friends()
         else:
             self.manager.debug("Failed to get friend ID.", "error")
@@ -44,7 +44,7 @@ class FriendsTab:
         if selected:
             friend_id, friend_name = self.tree.item(selected[0])['values']
             self.tree.delete(selected[0])
-            self.manager.debug(f"Removed friend: {friend_name} (ID: {friend_id})", "info")
+            self.manager.debug(f"Removed friend: {friend_name} (ID: {friend_id})", "info", True)
             self.save_friends()
 
     def save_friends(self):
