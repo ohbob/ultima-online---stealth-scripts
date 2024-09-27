@@ -7,7 +7,7 @@ class ScriptsTab:
         notebook.add(self.frame, text="Scripts")
         self.manager = manager
 
-        self.tree = ttk.Treeview(self.frame, columns=('Function', 'Hotkey'), show='headings')
+        self.tree = ttk.Treeview(self.frame, columns=('Function', 'Hotkey'), show='tree headings')
         self.tree.heading('Function', text='Function')
         self.tree.heading('Hotkey', text='Hotkey')
         self.tree.pack(pady=10, padx=10, fill=tk.BOTH, expand=True)
@@ -30,10 +30,19 @@ class ScriptsTab:
 
         self.tree.bind('<Double-1>', self.on_double_click)
 
-    def load_hotkeys(self, hotkeys):
+    def load_hotkeys(self, hotkeys, system_functions, regular_functions):
         self.tree.delete(*self.tree.get_children())  # Clear existing items
-        for func, hotkey in hotkeys.items():
-            self.tree.insert('', 'end', values=(func, hotkey))
+        
+        # Create "System Functions" section
+        system_id = self.tree.insert('', 'end', text='System Functions', open=True)
+        for func_name in system_functions:
+            display_name = ' '.join(func_name.split('_')).title()
+            self.tree.insert(system_id, 'end', values=(func_name, hotkeys.get(func_name, '')))
+
+        # Create "Scripts" section
+        scripts_id = self.tree.insert('', 'end', text='Scripts', open=True)
+        for func_name in regular_functions:
+            self.tree.insert(scripts_id, 'end', values=(func_name, hotkeys.get(func_name, '')))
 
     def assign_hotkey(self):
         selected = self.tree.selection()

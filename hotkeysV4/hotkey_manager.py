@@ -48,7 +48,8 @@ class HotkeyManager:
         self.hotkeys_enabled = True
         self.auto_functions_enabled = True
         self.hotkey_listener = None
-
+        self.system_functions = {}
+        self.discover_system_functions()
         self.create_widgets()
         self.load_config()
         self.start_hotkey_listener()
@@ -129,21 +130,17 @@ class HotkeyManager:
                             'hotkey': ''
                         }
 
+    def discover_system_functions(self):
+        base_path = os.path.dirname(os.path.abspath(__file__))
+        system_functions_path = os.path.join(base_path, 'system_functions')
+        self.discover_modules(system_functions_path, self.system_functions, is_auto=False)
+        debug(f"Discovered system functions: {list(self.system_functions.keys())}", "info")
+
     def populate_tree_views(self):
         # Populate scripts tab
-        self.scripts_tab.tree.delete(*self.scripts_tab.tree.get_children())  # Clear existing items
-        
-        # Add toggle_all_hotkeys and toggle_auto_functions to the scripts tab
-        self.scripts_tab.tree.insert('', 'end', values=('toggle_all_hotkeys', self.hotkeys.get('toggle_all_hotkeys', '')))
-        self.scripts_tab.tree.insert('', 'end', values=('toggle_auto_functions', self.hotkeys.get('toggle_auto_functions', '')))
-        
-        for func_name in self.functions:
-            hotkey = self.hotkeys.get(func_name, '')
-            self.scripts_tab.tree.insert('', 'end', values=(func_name, hotkey))
-
-        # Add add_friend and add_pet to the scripts tab
-        self.scripts_tab.tree.insert('', 'end', values=('add_friend', self.hotkeys.get('add_friend', '')))
-        self.scripts_tab.tree.insert('', 'end', values=('add_pet', self.hotkeys.get('add_pet', '')))
+        all_hotkeys = self.hotkeys.copy()
+        all_hotkeys.update({func_name: self.hotkeys.get(func_name, '') for func_name in self.system_functions})
+        self.scripts_tab.load_hotkeys(all_hotkeys, self.system_functions.keys(), self.functions.keys())
 
         # Populate auto functions tab
         self.auto_functions_tab.tree.delete(*self.auto_functions_tab.tree.get_children())  # Clear existing items
@@ -230,24 +227,27 @@ class HotkeyManager:
 
     def activate_function(self, func_name):
         debug(f"Attempting to activate function: {func_name}", "info")
-        if func_name == 'toggle_all_hotkeys':
-            self.toggle_all_hotkeys()
-        elif func_name == 'toggle_auto_functions':
-            self.toggle_auto_functions()
-        elif func_name == 'add_friend':
-            self.friends_tab.add_friend()
-        elif func_name == 'add_pet':
-            self.pets_tab.add_pet()
-        elif func_name in self.functions:
-            if self.hotkeys_enabled:
-                debug(f"Calling function: {func_name}", "info")
-                try:
-                    func = self.functions[func_name]
-                    func(self)  # Always pass self as the argument
-                except Exception as e:
-                    debug(f"Error calling function {func_name}: {str(e)}", "fail")
+        if func_name in ['toggle_all_hotkeys', 'toggle_auto_functions']:
+            # These functions should always work
+            if func_name == 'toggle_all_hotkeys':
+                self.toggle_all_hotkeys()
             else:
-                debug("Hotkeys are currently disabled", "warning")
+                self.toggle_auto_functions()
+        elif not self.hotkeys_enabled:
+            debug("Hotkeys are currently disabled", "warning")
+        elif func_name in self.system_functions:
+            debug(f"Calling system function: {func_name}", "info")
+            try:
+                self.system_functions[func_name](self)
+            except Exception as e:
+                debug(f"Error calling system function {func_name}: {str(e)}", "fail")
+        elif func_name in self.functions:
+            debug(f"Calling function: {func_name}", "info")
+            try:
+                func = self.functions[func_name]
+                func(self)  # Always pass self as the argument
+            except Exception as e:
+                debug(f"Error calling function {func_name}: {str(e)}", "fail")
         elif func_name in self.autofunctions:
             if self.auto_functions_enabled:
                 debug(f"Toggling auto function: {func_name}", "info")
