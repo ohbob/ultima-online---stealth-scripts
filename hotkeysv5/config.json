@@ -1,0 +1,46 @@
+{
+  "hotkeys_enabled": true,
+  "loop_enabled": false,
+  "auto_functions_enabled": true,
+  "scripts_timeout": 800,
+  "auto_functions_timeout": 500,
+  "hotkeys": {},
+  "friends": [
+    {
+      "name": "a llama",
+      "id": 62979
+    }
+  ],
+  "pets": [
+    {
+      "name": "a horse",
+      "id": 63673
+    },
+    {
+      "name": "a horse",
+      "id": 63672
+    }
+  ],
+  "auto_functions": {
+    "auto": {
+      "Message": {
+        "enabled": false,
+        "order": 1,
+        "path": "user/auto/Message.py",
+        "hotkey": ""
+      },
+      "AutoCastCure": {
+        "enabled": true,
+        "order": 2,
+        "path": "user/auto/AutoCastCure.py",
+        "hotkey": ""
+      },
+      "AutoCastGreaterHeal": {
+        "enabled": true,
+        "order": 3,
+        "path": "user/auto/AutoCastGreaterHeal.py",
+        "hotkey": ""
+      }
+    }
+  }
+}

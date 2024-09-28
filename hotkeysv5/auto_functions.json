@@ -2,19 +2,19 @@
   "auto": {
     "Message": {
       "order": 1,
-      "enabled": false,
+      "enabled": true,
       "hotkey": "",
       "path": "user/auto/Message.py"
     },
     "AutoCastCure": {
       "order": 2,
-      "enabled": false,
+      "enabled": true,
       "hotkey": "",
       "path": "user/auto/AutoCastCure.py"
     },
     "AutoCastGreaterHeal": {
       "order": 3,
-      "enabled": false,
+      "enabled": true,
       "hotkey": "",
       "path": "user/auto/AutoCastGreaterHeal.py"
     }

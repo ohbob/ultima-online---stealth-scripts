@@ -38,3 +38,6 @@ class FriendsController:
 
     def get_friends(self):
         return self.state.friends
+
+    def set_friends(self, friends):
+        self.state.friends = friends

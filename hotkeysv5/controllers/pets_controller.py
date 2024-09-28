@@ -42,3 +42,6 @@ class PetsController:
 
     def get_pets(self):
         return self.state.pets
+
+    def set_pets(self, pets):
+        self.state.pets = pets

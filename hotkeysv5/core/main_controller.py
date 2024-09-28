@@ -41,22 +41,26 @@ class MainController:
         self.main_thread.daemon = True
         self.main_thread.start()
 
+        self.config_file = 'config.json'
+        self.load_config()  # Load configuration at startup
+
     def set_ui(self, ui):
         self.ui = ui
         if hasattr(ui, 'scripts_tab'):
             self.scripts_tab = ui.scripts_tab
+        self.update_ui_after_config_load()  # Update UI with loaded config
         self.update_ui_with_discovered_functions()  # Update UI after it's set
 
     def set_hotkey(self, func_name):
-        # This should be implemented in the HotkeysController
         self.hotkeys_controller.set_hotkey(func_name)
         print(f"Hotkey set for function: {func_name}")
+        self.save_config()
         self.print_current_state()
 
     def clear_hotkey(self, func_name):
-        # This should be implemented in the HotkeysController
         self.hotkeys_controller.clear_hotkey(func_name)
         print(f"Hotkey cleared for function: {func_name}")
+        self.save_config()
         self.print_current_state()
 
     def run_once(self, func_name):
@@ -68,6 +72,7 @@ class MainController:
             timeout = int(timeout)
             self.state.set_scripts_timeout(timeout)
             print(f"Scripts timeout set to: {timeout} ms")
+            self.save_config()
             self.print_current_state()
         except ValueError:
             print("Invalid timeout value. Please enter a valid integer.")
@@ -77,6 +82,7 @@ class MainController:
             timeout = int(timeout)
             self.state.set_auto_functions_timeout(timeout)
             print(f"Auto functions timeout set to: {timeout} ms")
+            self.save_config()
             self.print_current_state()
         except ValueError:
             print("Invalid timeout value. Please enter a valid integer.")
@@ -86,6 +92,7 @@ class MainController:
         self.state.set_auto_functions_enabled(new_state)
         self.auto_functions_controller.set_all_auto_functions_state(new_state)
         print(f"Auto functions {'enabled' if new_state else 'disabled'}")
+        self.save_config()
         self.print_current_state()
         if self.ui and hasattr(self.ui, 'auto_functions_tab'):
             self.ui.auto_functions_tab.update_auto_button_state(new_state)
@@ -96,15 +103,77 @@ class MainController:
         # ... logic to enable/disable hotkeys ...
         if self.scripts_tab:
             self.scripts_tab.update_hotkey_button_state(self.hotkeys_enabled)
+        self.save_config()
         return self.hotkeys_enabled
 
     def save_config(self):
-        # Implement saving configuration
-        pass
+        config = {
+            'hotkeys_enabled': self.state.hotkeys_enabled,
+            'loop_enabled': self.state.loop_enabled,
+            'auto_functions_enabled': self.state.auto_functions_enabled,
+            'scripts_timeout': self.state.scripts_timeout,
+            'auto_functions_timeout': self.state.auto_functions_timeout,
+            'hotkeys': self.state.hotkeys,
+            'friends': self.state.friends,
+            'pets': self.state.pets,
+            'auto_functions': self._serialize_auto_functions()
+        }
+        
+        with open(self.config_file, 'w') as f:
+            json.dump(config, f, indent=2)
+        print("Configuration saved successfully")
+
+    def _serialize_auto_functions(self):
+        serialized = {}
+        for category, functions in self.state.auto_functions.items():
+            serialized[category] = {}
+            for func_name, func_data in functions.items():
+                serialized[category][func_name] = {
+                    'enabled': func_data.get('enabled', False),
+                    'order': func_data.get('order', 0),
+                    'path': func_data.get('path', ''),
+                    'hotkey': func_data.get('hotkey', '')
+                }
+        return serialized
 
     def load_config(self):
-        # Implement loading configuration
-        pass
+        try:
+            with open(self.config_file, 'r') as f:
+                config = json.load(f)
+            
+            self.state.set_hotkeys_enabled(config.get('hotkeys_enabled', False))
+            self.state.set_loop_enabled(config.get('loop_enabled', False))
+            self.state.set_auto_functions_enabled(config.get('auto_functions_enabled', False))
+            self.state.set_scripts_timeout(config.get('scripts_timeout', 5000))
+            self.state.set_auto_functions_timeout(config.get('auto_functions_timeout', 5000))
+            self.state.hotkeys = config.get('hotkeys', {})
+            self.state.friends = config.get('friends', [])
+            self.state.pets = config.get('pets', [])
+            self.state.auto_functions = config.get('auto_functions', {})
+            
+            # Update the controllers with the loaded data
+            self.friends_controller.set_friends(self.state.friends)
+            self.pets_controller.set_pets(self.state.pets)
+            
+            # Update the UI if it's already set
+            if self.ui:
+                self.update_ui_after_config_load()
+            
+            print("Configuration loaded successfully")
+        except FileNotFoundError:
+            print("No configuration file found. Starting with default settings.")
+        except json.JSONDecodeError:
+            print("Error decoding configuration file. Starting with default settings.")
+
+    def update_ui_after_config_load(self):
+        if hasattr(self.ui, 'friends_tab'):
+            self.ui.friends_tab.populate_tree()
+        if hasattr(self.ui, 'pets_tab'):
+            self.ui.pets_tab.populate_tree()
+        if hasattr(self.ui, 'scripts_tab'):
+            self.ui.scripts_tab.populate_tree()
+        if hasattr(self.ui, 'auto_functions_tab'):
+            self.ui.auto_functions_tab.populate_tree()
 
     def discover_all_functions(self):
         print("Starting function discovery...")
@@ -280,43 +349,49 @@ class MainController:
             if func_name in functions:
                 functions[func_name]['enabled'] = enabled
                 print(f"{'Enabled' if enabled else 'Disabled'} auto function: {func_name}")
-                self.save_auto_functions()  # Save the updated state
+                self.save_config()
                 return
         print(f"Auto function '{func_name}' not found")
 
     def add_friend(self):
         self.friends_controller.add_friend()
         self.ui.friends_tab.populate_tree()
+        self.save_config()
 
     def remove_friend(self, id):
         self.friends_controller.remove_friend(id)
         self.ui.friends_tab.populate_tree()
+        self.save_config()
 
     def clear_friends(self):
         self.friends_controller.clear_friends()
         self.ui.friends_tab.populate_tree()
+        self.save_config()
 
     def get_friends(self):
         return self.friends_controller.get_friends()
 
     def add_pet(self):
-        print("MainController: add_pet called")  # Debug print
+        print("MainController: add_pet called")
         self.pets_controller.add_pet()
         if self.ui:
-            print("Updating UI pets tab")  # Debug print
+            print("Updating UI pets tab")
             self.ui.pets_tab.populate_tree()
         else:
-            print("UI not set, cannot update pets tab")  # Debug print
+            print("UI not set, cannot update pets tab")
+        self.save_config()
 
     def remove_pet(self, id):
         self.pets_controller.remove_pet(id)
         if self.ui:
             self.ui.pets_tab.populate_tree()
+        self.save_config()
 
     def clear_pets(self):
         self.pets_controller.clear_pets()
         if self.ui:
             self.ui.pets_tab.populate_tree()
+        self.save_config()
 
     def get_pets(self):
         return self.pets_controller.get_pets()
