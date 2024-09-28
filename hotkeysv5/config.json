@@ -5,22 +5,30 @@
   "scripts_timeout": 1000,
   "auto_functions_timeout": 1000,
   "hotkeys": {
-    "a": "example_script",
-    "b": "addFriend",
-    "q": "FriendClosest",
-    "w": "example_script",
-    "e": "example_script"
+    "q": "PetClosest",
+    "w": "FriendClosest",
+    "e": "ShowLastTarget",
+    "ctrl+f": "ToggleAutoFunctions",
+    "ctrl+d": "ToggleHotkeys"
   },
   "friends": [
     {
       "name": "a horse",
       "id": 63672
+    },
+    {
+      "name": "a llama",
+      "id": 62978
     }
   ],
   "pets": [
     {
       "name": "a llama",
       "id": 62979
+    },
+    {
+      "name": "a horse",
+      "id": 63674
     }
   ],
   "auto_functions": {
@@ -30,29 +38,29 @@
         "path": "user/auto/Message.py",
         "hotkey": ""
       },
-      "one": {
-        "enabled": true,
-        "path": "user/auto/one.py",
-        "hotkey": ""
-      },
-      "two": {
-        "enabled": true,
-        "path": "user/auto/two.py",
-        "hotkey": ""
-      },
       "three": {
         "enabled": true,
         "path": "user/auto/three.py",
         "hotkey": ""
       },
-      "AutoCastCure": {
+      "one": {
         "enabled": true,
+        "path": "user/auto/one.py",
+        "hotkey": ""
+      },
+      "AutoCastCure": {
+        "enabled": false,
         "path": "user/auto/AutoCastCure.py",
         "hotkey": ""
       },
       "AutoCastGreaterHeal": {
-        "enabled": true,
+        "enabled": false,
         "path": "user/auto/AutoCastGreaterHeal.py",
+        "hotkey": ""
+      },
+      "two": {
+        "enabled": false,
+        "path": "user/auto/two.py",
         "hotkey": ""
       }
     }

@@ -152,31 +152,31 @@ class ScriptsTab(ttk.Frame):
         self.main_controller.set_scripts_timeout(timeout)
 
     def populate_tree(self):
-        print("Populating Scripts tab tree...")
         self.tree.delete(*self.tree.get_children())
         discovered_functions = self.main_controller.get_discovered_functions()
-        print(f"Found {len(discovered_functions)} categories of functions")
+        hotkeys = self.main_controller.hotkey_controller.get_hotkeys()
         
         for category, functions in discovered_functions.items():
             category_parts = category.split('.')
-            if category_parts[0] == 'functions':
-                category_parts = category_parts[1:]  # Remove 'functions' from the start
-            
             parent = ''
             for i, part in enumerate(category_parts):
-                full_path = '.'.join(category_parts[:i+1])
-                if not self.tree.exists(full_path):
-                    self.tree.insert(parent, 'end', full_path, text=part, open=True)
-                parent = full_path
-
-            print(f"Adding category: {'.'.join(category_parts)} with {len(functions)} functions")
-            # Sort the functions alphabetically
-            sorted_functions = sorted(functions.items(), key=lambda x: x[0].lower())
-            for func_name, func_data in sorted_functions:
-                hotkey = func_data.get('hotkey', '')
+                category_id = '.'.join(category_parts[:i+1])
+                if not self.tree.exists(category_id):
+                    self.tree.insert(parent, 'end', category_id, text=part)
+                parent = category_id
+            
+            for func_name in functions:
+                hotkey = hotkeys.get(func_name, '')
                 self.tree.insert(parent, 'end', text=func_name, values=(hotkey,))
-        print("Scripts tab tree population complete")
-        self.tree.bind('<<TreeviewSelect>>', self.on_tree_select)
+        
+        print(f"Populated tree with {len(hotkeys)} hotkeys")
+
+    def update_hotkeys_display(self, hotkeys):
+        for item in self.tree.get_children():
+            func_name = self.tree.item(item, 'text')
+            hotkey = hotkeys.get(func_name, '')
+            self.tree.set(item, 'Hotkey', hotkey)
+        print(f"Updated hotkeys display with {len(hotkeys)} hotkeys")
 
     # Remove the refresh_ui method if it's not being used elsewhere
 
@@ -195,6 +195,7 @@ class ScriptsTab(ttk.Frame):
             bg=self.BUTTON_BG_ON if state else self.BUTTON_BG_OFF,
             fg=self.BUTTON_FG_ON if state else self.BUTTON_FG_OFF
         )
+        print(f"Hotkey button state updated: {'On' if state else 'Off'}")
 
     def on_double_click(self, event):
         item = self.tree.identify('item', event.x, event.y)
@@ -208,9 +209,8 @@ class ScriptsTab(ttk.Frame):
         self.main_controller.run_once(func_name)
 
     def toggle_hotkey_function(self):
-        new_state = not self.hotkey_var.get()
+        new_state = self.main_controller.toggle_all_hotkeys()
         self.update_hotkey_button_state(new_state)
-        self.main_controller.set_hotkeys_state(new_state)
 
     def run_once(self):
         selected = self.tree.selection()
@@ -252,13 +252,14 @@ class ScriptsTab(ttk.Frame):
         else:
             print("Please select a script to clear its hotkey.")
 
-    def update_hotkey_display(self):
-        selected = self.tree.selection()
-        if selected:
-            item = selected[0]
-            hotkey = self.tree.set(item, 'Hotkey')
-            self.hotkey_entry.delete(0, tk.END)
-            self.hotkey_entry.insert(0, hotkey if hotkey else "")
+    def update_hotkey_display(self, hotkeys):
+        # Clear existing items
+        for item in self.tree.get_children():
+            self.tree.delete(item)
+
+        # Add hotkeys to the treeview
+        for hotkey, func_name in hotkeys.items():
+            self.tree.insert('', 'end', text=func_name, values=(hotkey,))
 
     def on_tree_select(self, event):
         self.update_hotkey_display()
@@ -284,3 +285,9 @@ class ScriptsTab(ttk.Frame):
 
     def on_hotkey_keyrelease(self, event):
         return 'break'  # Prevent default behavior
+
+    def toggle_hotkeys(self):
+        current_state = self.main_controller.state.hotkeys_enabled
+        new_state = not current_state
+        self.main_controller.set_hotkeys_state(new_state)
+        self.update_hotkey_button_state(new_state)

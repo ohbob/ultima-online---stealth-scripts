@@ -51,12 +51,17 @@ class MainController:
         self.ui = ui
         if hasattr(ui, 'scripts_tab'):
             self.scripts_tab = ui.scripts_tab
+        loaded_hotkeys = self.load_config()  # Load config and get hotkeys
         self.update_ui_after_config_load()  # Update UI with loaded config
         self.update_ui_with_discovered_functions()  # Update UI after it's set
+        if self.scripts_tab:
+            self.scripts_tab.populate_tree()  # This will now populate the tree with hotkeys
 
     def set_hotkey(self, hotkey, func_name):
         self.hotkey_controller.setup_hotkey(hotkey, func_name)
         self.save_config()
+        if self.scripts_tab:
+            self.scripts_tab.update_hotkeys_display(self.hotkey_controller.get_hotkeys())
         self.print_current_state()
 
     def clear_hotkey(self, hotkey):
@@ -124,18 +129,21 @@ class MainController:
         return new_state
 
     def toggle_all_hotkeys(self):
-        if self.state.hotkeys_enabled:
-            self.hotkey_controller.clear_all_hotkeys()
+        new_state = not self.state.hotkeys_enabled
+        self.state.set_hotkeys_enabled(new_state)
+        if new_state:
+            self.hotkey_controller.start()
         else:
-            # Re-setup all hotkeys from the configuration
-            for hotkey, func_name in self.state.hotkeys.items():
-                self.hotkey_controller.setup_hotkey(hotkey, func_name)
+            self.hotkey_controller.stop()
         
-        self.state.set_hotkeys_enabled(not self.state.hotkeys_enabled)
-        if self.scripts_tab:
-            self.scripts_tab.update_hotkey_button_state(self.state.hotkeys_enabled)
+        print(f"Hotkeys {'enabled' if new_state else 'disabled'}")
+        
+        # Update UI
+        if self.ui and hasattr(self.ui, 'scripts_tab'):
+            self.ui.scripts_tab.update_hotkey_button_state(new_state)
+        
         self.save_config()
-        return self.state.hotkeys_enabled
+        return new_state
 
     def save_config(self):
         config = {
@@ -200,10 +208,13 @@ class MainController:
             if self.ui:
                 self.update_ui_after_config_load()
             
+            print("Configuration loaded successfully")
+            return loaded_hotkeys  # Return the loaded hotkeys
         except FileNotFoundError:
             print("No configuration file found. Starting with default settings.")
         except json.JSONDecodeError:
             print("Error decoding configuration file. Starting with default settings.")
+        return {}  # Return an empty dict if loading fails
 
     def update_ui_after_config_load(self):
         if hasattr(self.ui, 'friends_tab'):
