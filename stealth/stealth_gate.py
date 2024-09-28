@@ -10,20 +10,16 @@ armor_sets = {
     'ringmail': {
         'arms': {'type': 0x13EE, 'skill': 50, 'layer': ArmsLayer()},
         'legs': {'type': 0x13F0, 'skill': 60, 'layer': PantsLayer()},
-        'tunic': {'type': 0x13EC, 'skill': 69, 'layer': ShirtLayer()},
+        # 'tunic': {'type': 0x13EC, 'skill': 69, 'layer': ShirtLayer()},
     },
     'chainmail': {
         'helmet': {'type': 0x13BB, 'skill': 70, 'layer': HatLayer()},
         'legs': {'type': 0x13BE, 'skill': 72, 'layer': PantsLayer()},
     },
     'plate': {
-        # 'gorget': {'type': 0x1413, 'skill': 90, 'layer': NeckLayer()}, # didnt buy it
-        'legs': {'type': 0x13BE, 'skill': 72, 'layer': PantsLayer()}, # chainmail leggs
         'helmet': {'type': 0x1412, 'skill': 92, 'layer': HatLayer()},
         'gloves': {'type': 0x1414, 'skill': 94, 'layer': GlovesLayer()},
         'arms': {'type': 0x1410, 'skill': 94, 'layer': GlovesLayer()},
-        'tunic': {'type': 0x13EC, 'skill': 98, 'layer': ShirtLayer()}, # add the ringmail tunic
-        # 'legs': {'type': 0x1411, 'skill': 96, 'layer': PantsLayer()}, # 90 str too much 
     }
 }
 

@@ -12,7 +12,6 @@ import threading
 from functools import wraps
 
 
-
 def debug(message: str, color: Literal["success", "fail", "info", "warning"] = "info", client=True) -> None:
     color_map = {
         "success": 60,  # Green
@@ -55,42 +54,57 @@ def toggleable(default=False, **kwargs):
         return wrapper
     return decorator
 
+def buff_exists(name):
+    if not name:
+        return False
+    for buff in GetBuffBarInfo():
+        buff_name = GetClilocByID(buff['ClilocID1']).upper()
+        if name.upper() in buff_name:
+            return True
+    return False
+
+def buffs_exist(names):
+    if not names:
+        return False
+    for buff in GetBuffBarInfo():
+        buff_name = GetClilocByID(buff['ClilocID1']).upper()
+        for name in names:
+            if name.upper() in buff_name:
+                return True
+    return False
+
 # ------------------------------------------------------------------------------------
 
+
 def main_loop():
+    journal_index = HighJournal()
     while True:
         if SystemFunctions.hotkeys_enabled:
-            if Functions.autoheal.enabled:
-                Functions.autoheal()
+            if Functions.auto_cast_heal_self.enabled:
+                Functions.auto_cast_heal_self()
+            
+            if Functions.autobandage.enabled:
+                Functions.autobandage()
+
+        # Check for new journal entries
+        while journal_index < HighJournal():
+            journal_index += 1
+            message = Journal(journal_index)
+            handle_system_message(message)
+
         time.sleep(0.1)  # Small delay to prevent excessive CPU usage
 
+def handle_system_message(message):
+    if "You finish applying the bandages" in message:
+        debug("Finished bandaging!")
+        SystemFunctions.reset_timer("bandage")
+    # elif "You finish casting the spell" in message:
+    #     SystemFunctions.reset_timer("heal")
+    # # ... other message handling ...
 
 
-ConsumableType = Literal[
-    "GREATER EXPLOSION", "GREATER STRENGTH", "GREATER HEAL", "GREATER REFRESHMENT",
-    "GREATER AGILITY", "GREATER CURE", "GREATER CONFLAGRATION", "GREATER CONFUSION BLAST",
-    "INVISIBILITY", "SMOKE BOMB", "ENCHANTED APPLE", "BOLAS", "ORANGE PETALS",
-    "ROSE OF TRINSIC", "GRAPES OF WRATH", "RECALL"
-]
-
-class Functions:
-    
-
-    @exclude_from_gui
-    def getTargetID() -> int :
-        ClientRequestObjectTarget()
-        WaitForClientTargetResponse(60000)
-        if ClientTargetResponsePresent():
-            response = ClientTargetResponse()
-            if isinstance(response, dict):
-                item_id = response.get('ID', None)
-                return item_id
-        return None
-
-    @staticmethod
-    @exclude_from_gui
-    def consume(item: ConsumableType) -> bool:
-        CONSUMABLE_MAP = {
+CONSUMABLE_MAP = {
+            "BANDAGE": (3617, 0xFFFF),
             "GREATER EXPLOSION": (3853, 0),
             "GREATER STRENGTH": (3849, 0),
             "GREATER HEAL": (3852, 0),
@@ -108,6 +122,74 @@ class Functions:
             "GRAPES OF WRATH": (12247, 1154),
             "RECALL": (8012, 0),
         }
+
+ConsumableType = Literal[
+    "GREATER EXPLOSION", "GREATER STRENGTH", "GREATER HEAL", "GREATER REFRESHMENT",
+    "GREATER AGILITY", "GREATER CURE", "GREATER CONFLAGRATION", "GREATER CONFUSION BLAST",
+    "INVISIBILITY", "SMOKE BOMB", "ENCHANTED APPLE", "BOLAS", "ORANGE PETALS",
+    "ROSE OF TRINSIC", "GRAPES OF WRATH", "RECALL", "BANDAGE"
+]
+
+class SystemFunctions:
+    timers = {}
+    hotkeys_enabled = True
+
+    @classmethod
+    def check_and_set_timer(cls, name, duration_ms):
+        now = time.time() * 1000  # Convert to milliseconds
+        if name not in cls.timers or now >= cls.timers[name]:
+            cls.timers[name] = now + duration_ms
+            return True
+        return False
+
+    @classmethod
+    def reset_timer(cls, name):
+        cls.timers.pop(name, None)
+
+    @classmethod
+    def get_remaining_time(cls, name):
+        if name in cls.timers:
+            return max(0, cls.timers[name] - time.time() * 1000)
+        return 0
+
+    @classmethod
+    def cooldown(cls, name, duration_ms):
+        def decorator(func):
+            @wraps(func)
+            def wrapper(*args, **kwargs):
+                if cls.check_and_set_timer(name, duration_ms):
+                    result = func(*args, **kwargs)
+                    if not result:
+                        cls.reset_timer(name)  # Only reset if function fails
+                    return result
+                # remaining = cls.get_remaining_time(name)
+                # debug(f"{name} on cooldown. {remaining:.0f} ms remaining.", "warning")
+                return False
+            return wrapper
+        return decorator
+
+    @classmethod
+    def toggle_all_hotkeys(cls):
+        cls.hotkeys_enabled = not cls.hotkeys_enabled
+        debug(f"Hotkeys {'enabled' if cls.hotkeys_enabled else 'disabled'}", 
+              "success" if cls.hotkeys_enabled else "fail")
+
+class Functions:
+    
+    @exclude_from_gui
+    def getTargetID() -> int :
+        ClientRequestObjectTarget()
+        WaitForClientTargetResponse(60000)
+        if ClientTargetResponsePresent():
+            response = ClientTargetResponse()
+            if isinstance(response, dict):
+                item_id = response.get('ID', None)
+                return item_id
+        return None
+
+    @staticmethod
+    @exclude_from_gui
+    def consume(item: ConsumableType) -> bool:
         
         if item in CONSUMABLE_MAP:
             type, color = CONSUMABLE_MAP[item]
@@ -146,22 +228,50 @@ class Functions:
 
 
     
-    @staticmethod
-    @toggleable(default=False, threshold=95)
-    def autoheal():
-        if Functions.autoheal.enabled and not Dead() and GetHP(Self()) < (MaxHP() * Functions.autoheal.threshold / 100):
-            Functions.heal_self()
+    @toggleable(default=False, threshold=70)
+    def auto_cast_heal_self():
+        if Functions.auto_cast_heal_self.enabled and not Dead() and GetHP(Self()) < (MaxHP() * Functions.auto_cast_heal_self.threshold / 100):
+            Functions.cast_heal_self()
+    
+    @toggleable(default=False, threshold=99)
+    def autobandage():
+        if Functions.autobandage.enabled and not Dead() and GetSkillCurrentValue("Healing") > 40 and not buffs_exist(['Veterinary', 'Healing']) and GetHP(Self()) <  (MaxHP() * Functions.autobandage.threshold / 100):
+            # Functions.bandage_self()
+            if Functions.consume("BANDAGE") and WaitForTarget(500) and TargetPresent():
+                TargetToObject(Self())
+                debug("Bandaging self", "info")
+
+    
+    # # @SystemFunctions.cooldown("bandage", 10000)  # 10 seconds in milliseconds
+    # def bandage_self():
+        
+    #         return True
+    #     debug("Failed to use bandage", "warning")
+    #     return False
+
+
+    def animalform():
+        if not Dead() and GetSkillValue("Ninjitsu") > 40 and Mana() > 15:
+            Cast("Animal Form")
+
+
+    @exclude_from_gui
+    def CastTo(spell, mana, id, timeout=2500):
+        if spell and Mana() > mana:
+            Cast(spell)
+            WaitForTarget(timeout)
+            if TargetPresent():
+                TargetToObject(id)
+                return True
+        return False
 
     @staticmethod
-    def heal_self():
-        if GetSkillCurrentValue("Magery") > 50 and not Dead() and Mana() > 15:
-            CastToObj("Greater Heal", Self())
-
-        # if Functions.consume("GREATER HEAL"):
-        #     debug("Healing Self", "success")
-        #     Wait(3000)
-        # else:
-        #     debug("Healing not possible", "warning")
+    @SystemFunctions.cooldown("heal", 100)  # 5 seconds in milliseconds
+    def cast_heal_self():
+        if GetSkillCurrentValue("Magery") > 40 and not Dead():
+            if Functions.CastTo("Greater Heal", 15, Self()):
+                return True
+        return False
 
     @staticmethod
     def deconstruct_gump():
@@ -294,14 +404,7 @@ class Functions:
 
 
 
-class SystemFunctions:
-    hotkeys_enabled = True
 
-    @staticmethod
-    def toggle_all_hotkeys():
-        SystemFunctions.hotkeys_enabled = not SystemFunctions.hotkeys_enabled
-        debug(f"Hotkeys {'enabled' if SystemFunctions.hotkeys_enabled else 'disabled'}", 
-              "success" if SystemFunctions.hotkeys_enabled else "fail")
 
 class HotkeyConfig:
     def __init__(self, master):
@@ -331,6 +434,7 @@ class HotkeyConfig:
         ttk.Button(button_frame, text="Assign Hotkey", command=self.assign_hotkey).pack(side=tk.LEFT, padx=5)
         ttk.Button(button_frame, text="Remove Hotkey", command=self.remove_hotkey).pack(side=tk.LEFT, padx=5)
         ttk.Button(button_frame, text="Save", command=self.save_config).pack(side=tk.LEFT, padx=5)
+        ttk.Button(button_frame, text="Toggle All Hotkeys", command=self.toggle_all_hotkeys).pack(side=tk.LEFT, padx=5)
 
         self.config_frame = ttk.Frame(self.notebook)
         self.notebook.add(self.config_frame, text="Function Config")
@@ -358,6 +462,10 @@ class HotkeyConfig:
             if not func_name.startswith('__') and not getattr(func, '_exclude_from_gui', False):
                 hotkey = self.config.get(func_name, {}).get('hotkey', '')
                 self.tree.insert('', 'end', values=(func_name, hotkey), tags=('system',))
+
+        # Add toggle_all_hotkeys to the list
+        hotkey = self.config.get('toggle_all_hotkeys', {}).get('hotkey', '')
+        self.tree.insert('', 'end', values=('toggle_all_hotkeys', hotkey), tags=('system',))
 
         # Load regular functions
         for func_name, func in inspect.getmembers(Functions, predicate=inspect.isfunction):
@@ -557,7 +665,9 @@ class HotkeyConfig:
 
     def activate_function(self, func_name):
         if SystemFunctions.hotkeys_enabled or func_name == 'toggle_all_hotkeys':
-            if hasattr(SystemFunctions, func_name):
+            if func_name == 'toggle_all_hotkeys':
+                self.toggle_all_hotkeys()
+            elif hasattr(SystemFunctions, func_name):
                 getattr(SystemFunctions, func_name)()
             elif hasattr(Functions, func_name):
                 func = getattr(Functions, func_name)
@@ -601,9 +711,15 @@ class HotkeyConfig:
             return value.lower() in ('true', 'yes', '1', 'on')
         return bool(value)
 
+    def toggle_all_hotkeys(self):
+        SystemFunctions.toggle_all_hotkeys()
+        status = "enabled" if SystemFunctions.hotkeys_enabled else "disabled"
+        # messagebox.showinfo("Hotkeys Status", f"All hotkeys are now {status}.")
+
     def __del__(self):
         if hasattr(self, 'hotkey_listener') and self.hotkey_listener:
             self.hotkey_listener.stop()
+
 
 if __name__ == "__main__":
     try:

@@ -1,13 +1,10 @@
 UI_CONFIG = {
     "window_title": "Tamer Helper",
-    "window_size": "150x350",  # Increased height to accommodate all buttons
+    "window_size": "150x200",
     "buttons": [
         ("HEAL", "BANDAGE"),
-        ("DISCORD", "FOLLOW"),
-        ("MORTAL", "CURE"),
-        ("PRI", "SEC"),
-        ("EOO", "CW"),
-        ("DF", "HONOR"),
+        ("DISCORD", "CURE"),
+        ("MORTAL", "FOLLOW")
     ],
     "settings": {
         "Friend Heal Threshold": 70,
@@ -26,12 +23,6 @@ UI_CONFIG = {
         "Remove Poison (Pets)": True,
         "Use Veterinary": True,
         "Use Bandages (Friends)": True,
-        "EOO Threshold": 80,
-        "Primary Threshold": 70,
-        "Secondary Threshold": 60,
-        "CW Threshold": 50,
-        "DF Threshold": 10,
-        "Honor Threshold": 10,
     },
     "settings_window": {
         "title": "Settings",
@@ -51,35 +42,20 @@ UI_CONFIG = {
     "numeric_settings": [
         "Friend Heal Threshold", "Friend Bandage Threshold", "Friend Cure Threshold",
         "Pet Heal Threshold", "Pet Bandage Threshold", "Pet Cure Threshold",
-        "Follow Distance", "Minimum Mana %", "Scan Frequency (ms)",
-        "EOO Threshold", "Primary Threshold", "Secondary Threshold",
-        "CW Threshold", "DF Threshold", "Honor Threshold"
+        "Follow Distance", "Minimum Mana %", "Scan Frequency (ms)"
     ],
     "boolean_settings": [
         "Remove Mortal (Friends)", "Remove Poison (Friends)",
         "Remove Mortal (Pets)", "Remove Poison (Pets)",
         "Use Veterinary", "Use Bandages (Friends)"
     ],
-    "shared_settings": [
-        "Follow Distance", "Minimum Mana %", "Scan Frequency (ms)",
-        "EOO Threshold", "Primary Threshold", "Secondary Threshold",
-        "CW Threshold", "DF Threshold", "Honor Threshold"
-    ],
+    "shared_settings": ["Follow Distance", "Minimum Mana %", "Scan Frequency (ms)"],
     "friend_settings": ["Friend Heal Threshold", "Friend Bandage Threshold", "Friend Cure Threshold",
                         "Remove Mortal (Friends)", "Remove Poison (Friends)", "Use Bandages (Friends)"],
     "pet_settings": ["Pet Heal Threshold", "Pet Bandage Threshold", "Pet Cure Threshold",
                      "Remove Mortal (Pets)", "Remove Poison (Pets)", "Use Veterinary"],
     "list_sections": ["Friends", "Pets"],
-    "state_keys": [
-        "HEAL", "BANDAGE", "DISCORD", "FOLLOW",
-        "MORTAL", "CURE", "PRI", "SEC",
-        "EOO", "CW", "DF", "HONOR"
-    ],
+    "state_keys": ["HEAL", "BANDAGE", "DISCORD", "CURE", "MORTAL", "FOLLOW"],
     "list_keys": ["FRIENDS", "PETS"],
-    "follow_key": "FOLLOW",
-    "damage_counter": {
-        "position": "right",  # Position the damage counter on the right side
-        "width": 20,  # Width of the damage counter display
-        "height": 5,  # Height of the damage counter display
-    }
+    "follow_key": "FOLLOW"
 }

@@ -16,75 +16,146 @@
 from datetime import datetime, timedelta
 from py_stealth import *
 
+# Constants
+RELEASE_GUMP = 2426193729
+RELEASE_BUTTON = 2
+MAX_PETS = 5
+TAMING_TIMEOUT = 20
+RELEASE_TIMEOUT = 20
+TARGET_SKILL = 105.0
 
-def tame():
+
+def wait_for_gump(gump_id, button_number=0, press_button=True, timeout=15):
+    end_time = datetime.now() + timedelta(seconds=timeout)
+    while datetime.now() < end_time:
+        if IsGump():
+            for gump_index in range(GetGumpsCount()):
+                gump_info = GetGumpInfo(gump_index)
+                if 'GumpID' in gump_info and gump_info['GumpID'] == gump_id:
+                    if press_button:
+                        NumGumpButton(gump_index, button_number)
+                    else:
+                        return gump_info
+                    return True
+                if IsGumpCanBeClosed(gump_index):
+                    CloseSimpleGump(gump_index)
+        CheckLag(5000)
+    return False
+
+def get_animals_by_skill(skill):
+    # if skill < 30:
+    #     return (0x00E4, 0x00C8, 0x00CC, 0x00E2, 0x00CD, 0x0006)  # rabbit, birds
+    # elif skill < 50:
+    #     return (0x00E4, 0x00C8, 0x00CC, 0x00E2, 0x00CD, 0x0006, 0x00CF, 0x00D8, 0x00E7)  # + sheep, cow
+    # elif skill < 70:
+    #     return  (0x00E8, 0x00E9)  # + sheep, cow
+    # else: # above 80
+        return (0x00E8, 0x00E9)  # + bull
+
+def move_to_target(target):
+    if GetDistance(target) > 1:
+        NewMoveXY(GetX(target), GetY(target), True, 1, True)
+
+def check_journal(start_time, messages):
+    return InJournalBetweenTimes("|".join(messages), start_time, datetime.now()) > 0
+
+def attempt_taming(target):
+    start_time = datetime.now()
+    UseSkill('Animal taming')
+    WaitTargetObject(target)
+    print(f"taming {target}")
+
+    end_time = start_time + timedelta(seconds=TAMING_TIMEOUT)
+    while datetime.now() < end_time:
+        if check_journal(start_time, ["had too many"]):
+            print("TOO MANY FOLLOWERS, KILLING ANIMAL")
+            if kill_animal(target):
+                return False
+        if check_journal(start_time, ["accept you", "looks tame", "even challenging."]):
+            print("RETURNED TRUE")
+            return True
+        if check_journal(start_time, ["Someone else is already taming", "cannot be"]):
+            print("RETURNED FALSE")
+            return False
+        if check_journal(start_time, ["fail to", "clear path", "is too far"]):
+            print("RETRY")
+            return None  # Return None to indicate a retry is needed
+
+        move_to_target(target)
+
+    return IsObjectExists(target) and GetHP(target) > 0
+
+def kill_animal(target):
+    end_time = datetime.now() + timedelta(seconds=30)  # 30 seconds timeout
+    while IsObjectExists(target) and GetHP(target) > 0 and datetime.now() < end_time:
+        Attack(target)
+        Wait(1000)
+    return not IsObjectExists(target) or GetHP(target) == 0
+
+def release_pet(target):
+    end_time = datetime.now() + timedelta(seconds=RELEASE_TIMEOUT)
+    while IsObjectExists(target) > 0 and PetsCurrent() > 0 and datetime.now() < end_time:
+        Attack(target)
+        Wait(1000)
+        if not IsObjectExists(target):
+            return True
+        # UOSay(f"{GetName(target)} release")
+        # Wait(1000)
+        # if wait_for_gump(RELEASE_GUMP, RELEASE_BUTTON):
+        #     Wait(1000)
+        #     if not IsObjectExists(target):
+        #         return True
+
+    return False
+
+def tame_target(target):
+    while IsObjectExists(target) > 0 and PetsCurrent() < MAX_PETS and GetHP(target) > 0:
+        move_to_target(target)
+
+        taming_result = attempt_taming(target)
+        if taming_result is False:
+            return False
+        elif taming_result is True:
+            if not release_pet(target):
+                print(f"Failed to release pet {target}, ignoring")
+                return False
+            return True
+        # If taming_result is None, continue the loop to retry
+
+    return False
+
+def tame_all_at_location():
     skill = GetSkillValue('Animal taming')
-    if skill < 30:
-        animals = (0x00CD, 0x0006) # rabbit, birds
-    if skill > 30:
-        animals = (0x00CD, 0x0006, 0x00CF, 0x00D8, 0x00E7) # rabbit, birds, sheep, cow
-    if skill > 50:
-        animals = (0x00CD, 0x0006, 0x00CF, 0x00D8, 0x00E7, 0x00ED)  # rabbit, birds, sheep, cow, hind
-    if skill > 50:
-        animals = (0x00CD, 0x0006, 0x00CF, 0x00D8, 0x00E7, 0x00ED, 0x00DC)  # rabbit, birds, sheep, cow, hind, llama
-    if skill > 70:
-        animals = (0x00CD, 0x0006, 0x00CF, 0x00D8, 0x00E7, 0x00ED, 0x00DC, 0x00EA) # rabbit, birds, sheep, cow, hind, llama, great hart
-    if skill > 80:
-        animals = (0x00CD, 0x0006, 0x00CF, 0x00D8, 0x00E7, 0x00ED, 0x00DC, 0x00EA, 0x00E8, 0x00E9) # rabbit, birds, sheep, cow, hind, llama, great hart, a bull
+    animals = get_animals_by_skill(skill)
 
-    for animal in animals:
-        if FindType(animal, Ground()) > 0:
-            mobarounds = GetFindedList()
-            mobarounds.sort(reverse=True, key=GetDistance)
-            for target in mobarounds:
-                while IsObjectExists(target) > 0 and PetsCurrent() < 5 and GetHP(target) > 0:
-                    if GetDistance(target) > 1:
-                        NewMoveXY(GetX(target), GetY(target), True, 1, True)
-                    timeout = datetime.now() + timedelta(milliseconds=25000)
-                    starttime = datetime.now()
-                    UseSkill('Animal taming')
-                    WaitTargetObject(target)
-                    tamed = False
-                    while not tamed:
-                        if ((InJournalBetweenTimes("accept you ", starttime, datetime.now())) > 0):
-                            tamed = True
-                        elif ((InJournalBetweenTimes("fail to |clear path |is too far ", starttime, datetime.now())) > 0):
-                            starttime = datetime.now()
-                            timeout = datetime.now() + timedelta(milliseconds=25000)
-                            UseSkill('Animal taming')
-                            WaitTargetObject(target)
-                        elif ((InJournalBetweenTimes("Someone else is already taming |cannot be |too far", starttime, datetime.now())) > 0):
-                            return
-                        elif ((InJournalBetweenTimes("looks tame ", starttime, datetime.now())) > 0):
-                            Ignore(target)
-                            return
-                        elif datetime.now() > timeout:
-                            return
-                        if GetDistance(target) > 1:
-                            NewMoveXY(GetX(target), GetY(target), True, 1, True)
-                        Wait(50)
-                    if GetSkillValue('Swordsmanship') < 100.0:
-                        UseType2(0x13F6)  # butchers knife
-                    elif GetSkillValue('Fencing') < 100.0:
-                        UseType2(0x0F52)  # dagger
-                    elif GetSkillValue('Mace fighting') < 100.0:
-                        UseType2(0x13B4)  # Club
-                    timeout = datetime.now() + timedelta(milliseconds=25000)
-                    while IsObjectExists(target) > 0:
-                        if GetDistance(target) > 1:
-                            NewMoveXY(GetX(target), GetY(target), True, 1, True)
-                        Attack(target)
-                        if TargetPresent():
-                            CancelTarget()
-                        Wait(50)
-                        if datetime.now() > timeout:
-                            return
+    found_animals = True
+    while found_animals:
+        found_animals = False
+        for animal in animals:
+            while FindType(animal, Ground()) > 0:
+                found_animals = True
+                targets = sorted(GetFindedList(), reverse=True, key=GetDistance)
+                for target in targets:
+                    tame_target(target)
+                    if PetsCurrent() >= MAX_PETS:
+                        return
 
+def main():
+    SetFindDistance(40)
+    SetFindVertical(40)
+    rail = [
+        #(5140, 3964),
+        (5167, 3981),
+        #(5193, 4017),
+        #(5223, 4032),
+        #(5225, 3977),
+        #(5209, 3956),
+    ]  # Add more coordinates as needed
 
-SetFindDistance(40)
-SetFindVertical(40)
-rail = [(2118, 2795), (2115, 2778), (2113, 2745), (2113, 2709), (2103, 2685), (2083, 2661)]
-while GetSkillValue('Animal taming') < 100.0:
-    for x, y in rail:
-        NewMoveXY(x, y, True, 1, True)
-        tame()
+    while GetSkillValue('Animal taming') < TARGET_SKILL:
+        for x, y in rail:
+            NewMoveXY(x, y, True, 2, True)
+            tame_all_at_location()
+
+if __name__ == "__main__":
+    main()

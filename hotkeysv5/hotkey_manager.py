@@ -17,6 +17,7 @@ def main():
     main_controller = MainController(py_stealth_instance)
     main_ui = MainUI(root, main_controller)
     main_controller.set_ui(main_ui)
+    main_controller.start()  # This will start the hotkey controller if enabled
     root.mainloop()
 
 if __name__ == "__main__":

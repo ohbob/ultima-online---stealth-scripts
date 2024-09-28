@@ -1,5 +1,7 @@
+# from py_stealth import *
 def main():
-    say_hello()  # This is from uo_globals.py
-    ClientPrintEx(Self(), 51, 3, "Example script baby")
-    heal_self()  # This is from uo_globals.py
+    Cast("Greater Heal")
+    WaitForTarget(2000)
+    if TargetPresent():
+        TargetToObject(Self())
     # ... rest of your script

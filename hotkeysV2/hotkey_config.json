@@ -1,0 +1,8 @@
+{
+    "heal_self": {"hotkey": "<ctrl>+h", "enabled": true, "threshold": 95},
+    "hide": "<ctrl>+i",
+    "cast_magic_arrow": "<ctrl>+m",
+    "cancel_target": "<ctrl>+c",
+    "toggle_autoheal": "<ctrl>+a",
+    "toggle_all_hotkeys": "<ctrl>+<shift>+h"
+}

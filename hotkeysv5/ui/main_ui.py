@@ -6,26 +6,28 @@ from .friends_tab import FriendsTab
 from .pets_tab import PetsTab
 
 class MainUI:
-    def __init__(self, root, main_controller):
+    def __init__(self, root, controller):
         self.root = root
-        self.main_controller = main_controller
-        self.root.title("Hotkey Manager v5")
+        self.controller = controller  # Changed from main_controller to controller
+        self.root.title("Ultima Online Assistant")
         self.create_widgets()
-        self.main_controller.discover_all_functions()  
+
+        # Bind the key press event to the root window
+        self.root.bind('<Key>', self.controller.handle_key_press)
 
     def create_widgets(self):
         self.notebook = ttk.Notebook(self.root)
-        self.notebook.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
+        self.notebook.pack(expand=True, fill='both')
 
-        self.scripts_tab = ScriptsTab(self.notebook, self.main_controller)
-        self.auto_functions_tab = AutoFunctionsTab(self.notebook, self.main_controller)
-        self.friends_tab = FriendsTab(self.notebook, self.main_controller)
-        self.pets_tab = PetsTab(self.notebook, self.main_controller)
+        self.friends_tab = FriendsTab(self.notebook, self.controller)
+        self.pets_tab = PetsTab(self.notebook, self.controller)
+        self.scripts_tab = ScriptsTab(self.notebook, self.controller)
+        self.auto_functions_tab = AutoFunctionsTab(self.notebook, self.controller)
 
-        self.notebook.add(self.scripts_tab, text="Scripts")
-        self.notebook.add(self.auto_functions_tab, text="Auto Functions")
-        self.notebook.add(self.friends_tab, text="Friends")
-        self.notebook.add(self.pets_tab, text="Pets")
+        self.notebook.add(self.friends_tab, text='Friends')
+        self.notebook.add(self.pets_tab, text='Pets')
+        self.notebook.add(self.scripts_tab, text='Scripts')
+        self.notebook.add(self.auto_functions_tab, text='Auto Functions')
 
     def populate_tree_views(self):
         self.scripts_tab.populate_tree()

@@ -1,7 +1,6 @@
 from py_stealth import *
 import time
 import datetime
-from damage_counter import *
 
 discord_cooldowns = {}
 last_discord_use = 0
@@ -25,28 +24,26 @@ def buffs_exist(names):
                 return True
     return False
 
-def BANDAGE(id, threshold):
-    if not buffs_exist(['Veterinary', 'Healing']): 
-        if GetDistance(id) < 3:
-            if UseType2(0x0E21):
-                WaitForTarget(500)
-                if TargetPresent:
-                    TargetToObject(id)
-                    Wait(500)
-
-def Veterinary(id, threshold):
-    if not buffs_exist(['Veterinary', 'Healing']) and GetDistance(id) < 3:
+def Bandage(id, threshold):
+    if not buffs_exist(['Veterinary', 'Healing']):
         if UseType2(0x0E21):
             WaitForTarget(500)
             if TargetPresent:
                 TargetToObject(id)
-                Wait(500)
+                Wait(50)
+
+def Veterinary(id, threshold):
+    if not buffs_exist(['Veterinary', 'Healing']):
+        if UseType2(0x0E21):
+            WaitForTarget(500)
+            if TargetPresent:
+                TargetToObject(id)
+                Wait(50)
 
 def Heal(target, threshold):
     if GetHP(target) < threshold:
         if GetSkillValue("Magery") > 50 and Mana() > 10:
                 Cast("Greater Heal")
-                Wait(500)
         elif GetSkillValue("Chivalry") > 50 and Mana() > 10:
             Cast("Close Wounds")
         WaitForTarget(1000)
@@ -54,24 +51,23 @@ def Heal(target, threshold):
             TargetToObject(target)
             # Wait(500)
 
-def MORTAL(target):
+def RemoveMortal(target):
     if IsYellowHits(target) and Mana() > 15:
         # CastToObj("Remove Curse", target)
-        CastToObj("Remove Curse", target)
-        # Cast("Remove Curse")
-        # WaitForTarget(1500)
-        # if TargetPresent():
-        #     TargetToObject(target)
-        #     Wait(500)
+        Cast("Remove Curse")
+        WaitForTarget(1000)
+        if TargetPresent():
+            TargetToObject(target)
+            Wait(500)
 
-def CURE(target, threshold):
+def Cure(target, threshold):
     if IsPoisoned(target) and Mana() > 15:
-        CastToObj("cleanse by fire", target)
-        # Cast("Cleanse by fire")
-        # WaitForTarget(1000)
-        # if TargetPresent():
-        #     TargetToObject(target)
-        #     Wait(500)
+        # CastToObj("cleanse by fire", target)
+        Cast("Cleanse by fire")
+        WaitForTarget(1000)
+        if TargetPresent():
+            TargetToObject(target)
+            Wait(500)
 
 def follow(id, distance):
     if id_distance := GetDistance(id) > distance:
@@ -158,106 +154,3 @@ def use_discordance(target):
     #     print('Discordance skill too low or conditions not met')
     
     return False
-
-
-from py_stealth import *
-def CW():
-    if Mana() > 10 and buff_exists("Enemy of One") and not buff_exists("Consecrate") and WarTargetID() > 0:
-        Cast("Consecrate Weapon")
-        Wait(50)
-
-def DF():
-    if Mana() > 10 and not buff_exists("Divine Fury") and buff_exists("Enemy of One") and WarTargetID() > 0:
-        Cast("Divine Fury")
-
-
-def PRI():
-    active_ability = GetActiveAbility()
-    if Mana() > 25 and (active_ability == 0 or active_ability == "0"):
-        print("Activating primary")
-        UsePrimaryAbility()
-    # Implement primary action logic here
-
-def SEC():
-    if Mana() > 25 and GetActiveAbility() == 0:
-        print("Activating secondary")
-        UseSecondaryAbility()
-    print("SEC function called")
-    # Implement secondary action logic here
-
-def EOO():
-    if Mana() > 15 and not buff_exists("Enemy of One"):
-        Cast("Enemy of One")
-
-
-
-honored = {}
-honor_cooldowns = {}
-last_honor_use = 0
-
-def HONOR(friendlist=[], petlist=[]):
-    global last_honor_use
-    current_time = time.time()
-
-    # Check if 3 seconds have passed since the last Honor use
-    if current_time - last_honor_use < 3:
-        print(f"Honor on global cooldown. Waiting...")
-        return
-
-    FindTypesArrayEx([0xFFFF], [0xFFFF], [Ground()], False)
-    targets = [t for t in GetFindedList() if 3 < GetNotoriety(t) < 7
-               and t not in friendlist
-               and t not in petlist
-               and t != Self()]
-    
-    targets.sort(key=lambda t: GetDistance(t))
-
-    for target in targets:
-        # Check if the target is on cooldown
-        if target in honor_cooldowns and current_time - honor_cooldowns[target] < 30:
-            print(f"Skipping target (ID: {target}) - on Honor cooldown")
-            continue
-
-        distance = GetDistance(target)
-        if distance <= 10 and GetHP(target) >= 25:
-            print(f"Attempting to use Honor on target (ID: {target}) {GetName(target)}")
-            if use_honor(target):
-                honor_cooldowns[target] = current_time
-                last_honor_use = current_time
-                print(f"Honor successful on target (ID: {target}). Cooldowns started.")
-                return
-            else:
-                print(f"Failed to honor target (ID: {target})")
-        else:
-            print(f"Target (ID: {target}) is too far or has low HP for Honor.")
-
-def use_honor(target):
-    if TargetPresent():
-        CancelTarget()
-
-    ReqVirtuesGump()
-    WaitForTarget(2500)
-    UseVirtue('honor')
-    WaitForTarget(3000)
-    TargetToObject(target)
-    Wait(50)
-
-    before = datetime.datetime.now()
-    # Check if honor was successful
-    if InJournalBetweenTimes("You have honored your opponent", before, datetime.datetime.now()) > 0:
-        honored[target] = True
-        print(f"Successfully honored target {target}")
-        return True
-    else:
-        print(f"Failed to honor target {target}")
-        return False
-
-print("HONOR function called")
-
-# Add this function to integrate damage counter with the main loop
-def update_damage_counter():
-    if WarTargetID() == 0 and damage_counter['enemy'] != 0 and not IsObjectExists(damage_counter['enemy']):
-        reset_and_print_stats()
-
-# Modify the existing SetEventProc call to include the damage function
-SetEventProc('evwardamage', damage)

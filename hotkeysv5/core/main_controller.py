@@ -16,6 +16,7 @@ from socket import error as SocketError
 from errno import ECONNREFUSED
 import threading
 import json
+from core.hotkey_controller import HotkeyController
 
 class MainController:
     def __init__(self, py_stealth):
@@ -33,6 +34,8 @@ class MainController:
         self.auto_functions = {}  # Initialize auto_functions as an empty dictionary
         self.load_auto_functions()  # Load saved auto functions
         self.discover_all_functions()
+        self.hotkey_controller = HotkeyController(self)
+        self.hotkeys = {}
 
         if not self.initialize_stealth_connection():
             raise ConnectionError("Failed to initialize Stealth connection")
@@ -51,21 +54,43 @@ class MainController:
         self.update_ui_after_config_load()  # Update UI with loaded config
         self.update_ui_with_discovered_functions()  # Update UI after it's set
 
-    def set_hotkey(self, func_name):
-        self.hotkeys_controller.set_hotkey(func_name)
-        print(f"Hotkey set for function: {func_name}")
+    def set_hotkey(self, hotkey, func_name):
+        self.hotkey_controller.setup_hotkey(hotkey, func_name)
         self.save_config()
         self.print_current_state()
 
-    def clear_hotkey(self, func_name):
-        self.hotkeys_controller.clear_hotkey(func_name)
-        print(f"Hotkey cleared for function: {func_name}")
+    def clear_hotkey(self, hotkey):
+        self.hotkey_controller.clear_hotkey(hotkey)
         self.save_config()
         self.print_current_state()
 
     def run_once(self, func_name):
         print(f"Running function once: {func_name}")
-        self.run_script(func_name, loop=False, timeout=self.state.scripts_timeout)
+        if hasattr(self, 'scripts_controller'):
+            self.scripts_controller.run_script(func_name, loop=False)
+        else:
+            print(f"Warning: Unable to run {func_name}. scripts_controller not found.")
+
+    def handle_key_press(self, event):
+        hotkey = self.get_hotkey_from_event(event)
+        if hotkey and hotkey in self.hotkeys:
+            func_name = self.hotkeys[hotkey]
+            self.run_once(func_name)
+
+    def get_hotkey_from_event(self, event):
+        modifiers = []
+        if event.state & 0x4:
+            modifiers.append('Ctrl')
+        if event.state & 0x1:
+            modifiers.append('Shift')
+        if event.state & 0x8:
+            modifiers.append('Alt')
+        
+        key = event.keysym
+        if key in ['Control_L', 'Control_R', 'Shift_L', 'Shift_R', 'Alt_L', 'Alt_R']:
+            return None  # Ignore modifier key presses on their own
+        
+        return '+'.join(modifiers + [key])
 
     def set_scripts_timeout(self, timeout):
         try:
@@ -99,12 +124,18 @@ class MainController:
         return new_state
 
     def toggle_all_hotkeys(self):
-        self.hotkeys_enabled = not self.hotkeys_enabled
-        # ... logic to enable/disable hotkeys ...
+        if self.state.hotkeys_enabled:
+            self.hotkey_controller.clear_all_hotkeys()
+        else:
+            # Re-setup all hotkeys from the configuration
+            for hotkey, func_name in self.state.hotkeys.items():
+                self.hotkey_controller.setup_hotkey(hotkey, func_name)
+        
+        self.state.set_hotkeys_enabled(not self.state.hotkeys_enabled)
         if self.scripts_tab:
-            self.scripts_tab.update_hotkey_button_state(self.hotkeys_enabled)
+            self.scripts_tab.update_hotkey_button_state(self.state.hotkeys_enabled)
         self.save_config()
-        return self.hotkeys_enabled
+        return self.state.hotkeys_enabled
 
     def save_config(self):
         config = {
@@ -113,7 +144,7 @@ class MainController:
             'auto_functions_enabled': self.state.auto_functions_enabled,
             'scripts_timeout': self.state.scripts_timeout,
             'auto_functions_timeout': self.state.auto_functions_timeout,
-            'hotkeys': self.state.hotkeys,
+            'hotkeys': self.hotkey_controller.get_hotkeys(),
             'friends': self.state.friends,
             'pets': self.state.pets,
             'auto_functions': self._serialize_auto_functions()
@@ -145,7 +176,10 @@ class MainController:
             self.state.set_auto_functions_enabled(config.get('auto_functions_enabled', False))
             self.state.set_scripts_timeout(config.get('scripts_timeout', 5000))
             self.state.set_auto_functions_timeout(config.get('auto_functions_timeout', 5000))
-            self.state.hotkeys = config.get('hotkeys', {})
+            
+            loaded_hotkeys = config.get('hotkeys', {})
+            self.hotkey_controller.set_hotkeys(loaded_hotkeys)
+            
             self.state.friends = config.get('friends', [])
             self.state.pets = config.get('pets', [])
             
@@ -195,10 +229,14 @@ class MainController:
         else:
             print("UI not set, skipping UI update")
 
-    def set_hotkeys_state(self, enabled):
-        self.state.set_hotkeys_enabled(enabled)
-        self.hotkeys_controller.set_all_hotkeys_state(enabled)
-        print(f"Hotkeys {'enabled' if enabled else 'disabled'}")
+    def set_hotkeys_state(self, state):
+        self.state.set_hotkeys_enabled(state)
+        if state:
+            self.hotkey_controller.start()
+        else:
+            self.hotkey_controller.stop()
+        print(f"Hotkeys {'enabled' if state else 'disabled'}")
+        self.save_config()
         self.print_current_state()
 
     def set_loop_state(self, enabled):
@@ -405,17 +443,6 @@ class MainController:
     def set_scripts_tab(self, scripts_tab):
         self.scripts_tab = scripts_tab
 
-    def set_hotkeys_state(self, state):
-        self.state.set_hotkeys_enabled(state)
-        self.hotkeys_controller.set_all_hotkeys_state(state)
-        print(f"Hotkeys {'enabled' if state else 'disabled'}")
-        self.print_current_state()
-
-    def set_loop_state(self, enabled):
-        self.state.set_loop_enabled(enabled)
-        print(f"Loop {'enabled' if enabled else 'disabled'}")
-        self.print_current_state()
-
     def run_enabled_auto_functions(self):
         start_time = time.time()
         for category, functions in self.state.auto_functions.items():
@@ -539,3 +566,12 @@ class MainController:
                     updated_auto_functions[category][func_name] = functions[func_name]
         self.state.auto_functions = updated_auto_functions
         self.save_config()
+
+    def start(self):
+        if self.state.hotkeys_enabled:
+            self.hotkey_controller.start()
+        # ... existing code ...
+
+    def stop(self):
+        self.hotkey_controller.stop()
+        # ... existing code ...
