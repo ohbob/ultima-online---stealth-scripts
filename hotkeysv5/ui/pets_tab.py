@@ -23,8 +23,9 @@ class PetsTab(ttk.Frame):
 
         self.remove_button = ttk.Button(button_frame, text="Remove Pet", command=self.remove_pet)
         self.remove_button.pack(side=tk.LEFT, padx=5)
+
         self.clear_button = ttk.Button(button_frame, text="Clear Pets", command=self.clear_pets)
-        self.clear_button.pack(side=tk.RIGHT, padx=5)
+        self.clear_button.pack(side=tk.LEFT, padx=5)
 
     def populate_tree(self):
         self.tree.delete(*self.tree.get_children())
@@ -33,15 +34,16 @@ class PetsTab(ttk.Frame):
             self.tree.insert('', 'end', values=(pet['name'], pet['id']))
 
     def add_pet(self):
-        # Implement add pet functionality
-        pass
+        self.main_controller.add_pet()
+        self.populate_tree()
 
     def remove_pet(self):
-        # Implement remove pet functionality
-        pass
+        selected_item = self.tree.selection()
+        if selected_item:
+            pet_id = self.tree.item(selected_item[0])['values'][1]
+            self.main_controller.remove_pet(pet_id)
+            self.populate_tree()
 
     def clear_pets(self):
-        # Implement clear pets functionality
-        pass
-
-    # ... (other methods as needed)
+        self.main_controller.clear_pets()
+        self.populate_tree()

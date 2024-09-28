@@ -1,120 +1,74 @@
 import os
 import importlib.util
 from core.state import State
+import inspect
 
 class AutoDiscoveryController:
     def __init__(self, state: State):
         self.state = state
-
-    def discover_functions(self):
-        base_path = os.path.dirname(os.path.abspath(__file__))
-        
-        functions_path = os.path.join(base_path, 'functions')
-        self.discover_modules(functions_path, self.state.functions, is_auto=False)
-        
-        autofunctions_path = os.path.join(base_path, 'autofunctions')
-        self.discover_modules(autofunctions_path, self.state.auto_functions, is_auto=True)
-
-    def discover_modules(self, path, target_dict, is_auto):
-        if not os.path.exists(path):
-            print(f"Path does not exist: {path}")
-            return
-
-        for filename in os.listdir(path):
-            if filename.endswith('.py') and not filename.startswith('__'):
-                module_name = filename[:-3]
-                module_path = os.path.join(path, filename)
-                spec = importlib.util.spec_from_file_location(module_name, module_path)
-                module = importlib.util.module_from_spec(spec)
-                
-                # Add py_stealth functions to the module's global namespace
-                module.__dict__.update({name: func for name, func in globals().items() if callable(func) and not name.startswith('__')})
-                
-                try:
-                    spec.loader.exec_module(module)
-                except Exception as e:
-                    print(f"Error loading module {module_name}: {str(e)}")
-                    continue
-                
-                if hasattr(module, 'main'):
-                    target_dict[module_name] = module.main
-                    print(f"Discovered {'auto ' if is_auto else ''}function: {module_name}")
-                    
-                    if is_auto:
-                        # Initialize auto function in state.auto_functions
-                        self.state.auto_functions[module_name] = {
-                            'enabled': False,
-                            'variable1': '',
-                            'variable2': '',
-                            'variable3': '',
-                            'hotkey': ''
-                        }
+        self.core_functions_path = os.path.join('core', 'functions')
+        self.user_scripts_path = os.path.join('user', 'scripts')
+        self.user_auto_path = os.path.join('user', 'auto')
 
     def discover_all_functions(self):
-        discovered_functions = self.discover_functions()
+        discovered_functions = {}
+        auto_functions = {}
+
+        # Discover core functions
+        self.discover_functions(self.core_functions_path, discovered_functions)
+
+        # Discover user scripts
+        self.discover_functions(self.user_scripts_path, discovered_functions)
+
+        # Discover user auto functions
+        self.discover_functions(self.user_auto_path, auto_functions)
+
         self.state.update_discovered_functions(discovered_functions)
+        self.state.update_auto_functions(auto_functions)
 
-    def discover_functions(self):
-        base_path = os.path.dirname(os.path.abspath(__file__))
-        
-        functions_path = os.path.join(base_path, 'functions')
-        self.discover_modules(functions_path, self.state.functions, is_auto=False)
-        
-        autofunctions_path = os.path.join(base_path, 'autofunctions')
-        self.discover_modules(autofunctions_path, self.state.auto_functions, is_auto=True)
-
-    def discover_modules(self, path, target_dict, is_auto):
-        if not os.path.exists(path):
-            print(f"Path does not exist: {path}")
-            return
-
-        for filename in os.listdir(path):
-            if filename.endswith('.py') and not filename.startswith('__'):
-                module_name = filename[:-3]
-                module_path = os.path.join(path, filename)
-                spec = importlib.util.spec_from_file_location(module_name, module_path)
-                module = importlib.util.module_from_spec(spec)
-                
-                # Add py_stealth functions to the module's global namespace
-                module.__dict__.update({name: func for name, func in globals().items() if callable(func) and not name.startswith('__')})
-                
-                try:
-                    spec.loader.exec_module(module)
-                except Exception as e:
-                    print(f"Error loading module {module_name}: {str(e)}")
-                    continue
-                
-                if hasattr(module, 'main'):
-                    target_dict[module_name] = module.main
-                    print(f"Discovered {'auto ' if is_auto else ''}function: {module_name}")
-                    
-                    if is_auto:
-                        # Initialize auto function in state.auto_functions
-                        self.state.auto_functions[module_name] = {
-                            'enabled': False,
-                            'variable1': '',
-                            'variable2': '',
-                            'variable3': '',
-                            'hotkey': ''
-                        }
-
-    def discover_all_functions(self):
-        base_path = os.path.dirname(os.path.abspath(__file__))
-        autodiscovery_path = os.path.join(base_path, 'autodiscovery')
-        for root, dirs, files in os.walk(autodiscovery_path):
+    def discover_functions(self, base_path, target_dict):
+        for root, dirs, files in os.walk(base_path):
+            # Skip __pycache__ directories
             dirs[:] = [d for d in dirs if d != '__pycache__']
-            
-            relative_path = os.path.relpath(root, autodiscovery_path)
-            if relative_path == '.':
-                continue
-            category = relative_path.replace(os.path.sep, '_')
-            self.state.discovered_functions[category] = {}
-            self.discover_modules(root, self.state.discovered_functions[category], is_auto=False)
-    
-        # Flatten the discovered functions for easier access
-        self.state.flattened_functions = {}
-        for category, functions in self.state.discovered_functions.items():
-            for func_name, func in functions.items():
-                self.state.flattened_functions[f"{category}_{func_name}"] = func
-    
-        print(f"Discovered functions: {list(self.state.flattened_functions.keys())}")
+
+            category = os.path.relpath(root, base_path).replace(os.path.sep, '.')
+            if category == '.':
+                category = os.path.basename(base_path)
+
+            if category not in target_dict:
+                target_dict[category] = {}
+
+            for file in files:
+                if file.endswith('.py') and not file.startswith('__'):
+                    module_name = file[:-3]
+                    module_path = os.path.join(root, file)
+                    function = self.load_function(module_path, module_name)
+                    if function:
+                        target_dict[category][module_name] = function
+
+        # Remove empty categories
+        target_dict = {k: v for k, v in target_dict.items() if v}
+
+    def load_function(self, module_path, module_name):
+        try:
+            spec = importlib.util.spec_from_file_location(module_name, module_path)
+            module = importlib.util.module_from_spec(spec)
+            spec.loader.exec_module(module)
+
+            if hasattr(module, 'main'):
+                main_func = module.main
+                params = list(inspect.signature(main_func).parameters.keys())
+                return {
+                    'function': main_func,
+                    'description': getattr(module, 'description', ''),
+                    'hotkey': '',
+                    'enabled': False,
+                    'path': module_path,
+                    'variable1': params[0] if len(params) > 0 else '',
+                    'variable2': params[1] if len(params) > 1 else '',
+                    'variable3': params[2] if len(params) > 2 else '',
+                    'param_count': len(params)
+                }
+        except Exception as e:
+            print(f"Error loading module {module_name}: {str(e)}")
+        return None

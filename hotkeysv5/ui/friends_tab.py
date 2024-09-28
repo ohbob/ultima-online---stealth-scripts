@@ -1,5 +1,5 @@
 import tkinter as tk
-from tkinter import ttk
+from tkinter import ttk, messagebox
 
 class FriendsTab(ttk.Frame):
     def __init__(self, parent, main_controller):
@@ -25,7 +25,7 @@ class FriendsTab(ttk.Frame):
         self.remove_button.pack(side=tk.LEFT, padx=5)
         
         self.clear_button = ttk.Button(button_frame, text="Clear Friends", command=self.clear_friends)
-        self.clear_button.pack(side=tk.RIGHT, padx=5)
+        self.clear_button.pack(side=tk.LEFT, padx=5)
 
     def populate_tree(self):
         self.tree.delete(*self.tree.get_children())
@@ -34,15 +34,16 @@ class FriendsTab(ttk.Frame):
             self.tree.insert('', 'end', values=(friend['name'], friend['id']))
 
     def add_friend(self):
-        # Implement add friend functionality
-        pass
+        self.main_controller.add_friend()
 
     def remove_friend(self):
-        # Implement remove friend functionality
-        pass
+        selected_item = self.tree.selection()
+        if selected_item:
+            friend_id = self.tree.item(selected_item)['values'][1]
+            self.main_controller.remove_friend(friend_id)
 
     def clear_friends(self):
-        # Implement clear friends functionality
-        pass
+        if messagebox.askyesno("Clear Friends", "Are you sure you want to clear all friends?"):
+            self.main_controller.clear_friends()
 
     # ... (other methods)

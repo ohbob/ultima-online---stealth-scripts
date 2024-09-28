@@ -41,3 +41,11 @@ class MainUI:
 
     def show_warning(self, message):
         messagebox.showwarning("Warning", message)
+
+    def update_hotkeys_button(self, state):
+        # This method should update the existing hotkeys button in the appropriate tab
+        pass
+
+    def update_auto_functions_button(self, state):
+        # This method should update the existing auto functions button in the appropriate tab
+        pass

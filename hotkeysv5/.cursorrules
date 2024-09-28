@@ -21,3 +21,4 @@ Example Breakdown
 Main Script (hotkey_manager.py)
 Purpose: Initialize and run the application.
 Contains: Entry point, main function, and initialization of main components.
+Should use global py_stealth instance, only one, we cannot import more than one time!!!
