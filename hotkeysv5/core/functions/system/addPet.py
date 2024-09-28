@@ -1,4 +1,4 @@
 from core.main_controller import MainController
 
-def main(*args):
+def main(main_controller: MainController):
     main_controller.add_pet()

@@ -2,5 +2,5 @@
 def main():
     if TargetPresent():
         # ClientPrintEx(LastTarget(), 44, 3, f"LTARGET")
-        TargetToObject(LastTarget())
-        ClientPrintEx(LastTarget(), 44, 3, "↓")
+        TargetToObject(LastStatus())
+        ClientPrintEx(LastStatus(), 44, 3, "↓")

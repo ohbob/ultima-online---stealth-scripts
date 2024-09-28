@@ -21,6 +21,9 @@ class ScriptsTab(ttk.Frame):
         self.tree = self.create_treeview()
         self.tree.pack(fill=tk.BOTH, expand=True)
 
+        # Add double-click binding
+        self.tree.bind('<Double-1>', self.on_double_click)
+
         button_frame = ttk.Frame(self)
         button_frame.pack(fill=tk.X, padx=self.BUTTON_PADX, pady=self.BUTTON_PADY)
 
@@ -99,10 +102,7 @@ class ScriptsTab(ttk.Frame):
             item = selected[0]
             if self.tree.parent(item):  # Check if the selected item is not a folder
                 func_name = self.tree.item(item, 'text')
-                loop = self.loop_var.get()
-                timeout = int(self.timeout_entry.get())
-                self.main_controller.set_scripts_timeout(timeout)
-                self.main_controller.run_script(func_name, loop, timeout)
+                self.run_script(func_name)
             else:
                 print("Please select a script, not a folder.")
 
@@ -139,7 +139,9 @@ class ScriptsTab(ttk.Frame):
                 parent = full_path
 
             print(f"Adding category: {'.'.join(category_parts)} with {len(functions)} functions")
-            for func_name, func_data in functions.items():
+            # Sort the functions alphabetically
+            sorted_functions = sorted(functions.items(), key=lambda x: x[0].lower())
+            for func_name, func_data in sorted_functions:
                 hotkey = func_data.get('hotkey', '')
                 self.tree.insert(parent, 'end', text=func_name, values=(hotkey,))
         print("Scripts tab tree population complete")
@@ -161,3 +163,15 @@ class ScriptsTab(ttk.Frame):
             bg=self.BUTTON_BG_ON if state else self.BUTTON_BG_OFF,
             fg=self.BUTTON_FG_ON if state else self.BUTTON_FG_OFF
         )
+
+    def on_double_click(self, event):
+        item = self.tree.identify('item', event.x, event.y)
+        if self.tree.parent(item):  # Check if the clicked item is not a folder
+            func_name = self.tree.item(item, 'text')
+            self.run_script(func_name)
+
+    def run_script(self, func_name):
+        loop = self.loop_var.get()
+        timeout = int(self.timeout_entry.get())
+        self.main_controller.set_scripts_timeout(timeout)
+        self.main_controller.run_script(func_name, loop, timeout)
