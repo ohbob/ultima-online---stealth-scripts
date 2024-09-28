@@ -12,6 +12,10 @@ import time
 from contextlib import redirect_stdout
 from core.py_stealth import *
 from core.uo_globals import *  # Import the global functions
+from socket import error as SocketError
+from errno import ECONNREFUSED
+import threading
+import json
 
 class MainController:
     def __init__(self, py_stealth):
@@ -20,13 +24,22 @@ class MainController:
         self.hotkeys_controller = HotkeysController(self.state)
         self.friends_controller = FriendsController(self.state, self.py_stealth)
         self.pets_controller = PetsController(self.state, self.py_stealth)
-        self.scripts_controller = ScriptsController(self.state)
+        self.scripts_controller = ScriptsController(self.state, self)
         self.auto_functions_controller = AutoFunctionsController(self.state)
         self.auto_discovery_controller = AutoDiscoveryController(self.state)
         self.ui = None
         self.scripts_tab = None  # This will be set when creating the UI
         self.hotkeys_enabled = False  # Initial state
+        self.auto_functions = {}  # Initialize auto_functions as an empty dictionary
+        self.load_auto_functions()  # Load saved auto functions
         self.discover_all_functions()
+
+        if not self.initialize_stealth_connection():
+            raise ConnectionError("Failed to initialize Stealth connection")
+
+        self.main_thread = threading.Thread(target=self.main_loop)
+        self.main_thread.daemon = True
+        self.main_thread.start()
 
     def set_ui(self, ui):
         self.ui = ui
@@ -119,12 +132,14 @@ class MainController:
         self.print_current_state()
 
     def set_auto_functions_state(self, enabled):
+        print(f"Attempting to {'enable' if enabled else 'disable'} auto functions...")
         self.state.set_auto_functions_enabled(enabled)
-        self.auto_functions_controller.set_all_auto_functions_state(enabled)
         print(f"Auto functions {'enabled' if enabled else 'disabled'}")
-        self.print_current_state()
+        
         if self.ui and hasattr(self.ui, 'auto_functions_tab'):
             self.ui.auto_functions_tab.update_auto_button_state(enabled)
+        
+        self.print_current_state()
 
     def print_current_state(self):
         print("\nCurrent Application State:")
@@ -221,6 +236,11 @@ class MainController:
         captured_output = io.StringIO()
         with redirect_stdout(captured_output):
             try:
+                if not self.check_stealth_connection():
+                    if not self.reconnect_to_stealth():
+                        print(f"Cannot execute {func_name}: No connection to Stealth.")
+                        return
+
                 script_namespace = self._prepare_script_namespace()
                 
                 with open(script_path, 'r') as script_file:
@@ -229,15 +249,23 @@ class MainController:
 
                 if 'main' in script_namespace:
                     main_func = script_namespace['main']
-                    args = self._prepare_auto_function_args(func_data)
                     if loop:
                         start_time = time.time()
                         while True:
-                            main_func(*args)
+                            try:
+                                main_func()
+                            except SocketError as e:
+                                if e.errno == ECONNREFUSED:
+                                    print("Lost connection to Stealth. Attempting to reconnect...")
+                                    if not self.reconnect_to_stealth():
+                                        break
+                                else:
+                                    print(f"An unexpected error occurred: {str(e)}")
+                                    break
                             if timeout and (time.time() - start_time) * 1000 >= timeout:
                                 break
                     else:
-                        main_func(*args)
+                        main_func()
                 else:
                     print(f"Error: 'main' function not found in {func_name}")
             except Exception as e:
@@ -247,27 +275,14 @@ class MainController:
 
         print(captured_output.getvalue())
 
-    def _prepare_auto_function_args(self, func_data):
-        args = []
-        for i in range(1, 4):  # Assuming a maximum of 3 variables
-            var_name = f'variable{i}'
-            if var_name in func_data:
-                args.append(func_data[var_name])
-        return args
-
-    def update_auto_function_param(self, func_name, param_index, value):
-        for category, functions in self.state.auto_functions.items():
-            if func_name in functions:
-                functions[func_name][f'variable{param_index + 1}'] = value
-                break
-        print(f"Updated parameter {param_index + 1} of {func_name} to {value}")
-
     def toggle_auto_function(self, func_name, enabled):
         for category, functions in self.state.auto_functions.items():
             if func_name in functions:
                 functions[func_name]['enabled'] = enabled
-                break
-        print(f"{'Enabled' if enabled else 'Disabled'} auto function: {func_name}")
+                print(f"{'Enabled' if enabled else 'Disabled'} auto function: {func_name}")
+                self.save_auto_functions()  # Save the updated state
+                return
+        print(f"Auto function '{func_name}' not found")
 
     def add_friend(self):
         self.friends_controller.add_friend()
@@ -320,33 +335,73 @@ class MainController:
         print(f"Loop {'enabled' if enabled else 'disabled'}")
         self.print_current_state()
 
-    def set_auto_functions_state(self, enabled):
-        self.state.set_auto_functions_enabled(enabled)
-        self.auto_functions_controller.set_all_auto_functions_state(enabled)
-        print(f"Auto functions {'enabled' if enabled else 'disabled'}")
-        self.print_current_state()
-        if self.ui and hasattr(self.ui, 'auto_functions_tab'):
-            self.ui.auto_functions_tab.update_auto_button_state(enabled)
+    def run_enabled_auto_functions(self):
+        start_time = time.time()
+        ordered_functions = []
+        for category, functions in self.state.auto_functions.items():
+            for func_name, func_data in functions.items():
+                if func_data.get('enabled', False):
+                    ordered_functions.append((func_name, func_data))
+        
+        # Sort the functions based on their order
+        ordered_functions.sort(key=lambda x: x[1].get('order', 0))
 
-    def print_current_state(self):
-        print("\nCurrent Application State:")
-        print(f"Hotkeys Enabled: {self.state.hotkeys_enabled}")
-        print(f"Loop Enabled: {self.state.loop_enabled}")
-        print(f"Auto Functions Enabled: {self.state.auto_functions_enabled}")
-        print(f"Scripts Timeout: {self.state.scripts_timeout} ms")
-        print(f"Auto Functions Timeout: {self.state.auto_functions_timeout} ms")
-        print(f"Number of Hotkeys: {len(self.state.hotkeys)}")
-        print(f"Number of Friends: {len(self.state.friends)}")
-        print(f"Number of Pets: {len(self.state.pets)}")
-        print(f"Number of Discovered Functions: {sum(len(funcs) for funcs in self.state.discovered_functions.values())}")
-        print(f"Number of Auto Functions: {sum(len(funcs) for funcs in self.state.auto_functions.values())}")
-        print()  # Empty line for better readability
+        for func_name, func_data in ordered_functions:
+            print(f"Running auto function: {func_name}")
+            self.run_auto_function(func_name, loop=False, timeout=self.state.auto_functions_timeout)
+        
+        elapsed_time = (time.time() - start_time) * 1000
+        if elapsed_time < self.state.auto_functions_timeout:
+            sleep_time = (self.state.auto_functions_timeout - elapsed_time) / 1000
+            print(f"Sleeping for {sleep_time:.2f} seconds")
+            time.sleep(sleep_time)
 
-    def get_discovered_functions(self):
-        return self.state.discovered_functions
+    def load_auto_functions(self):
+        try:
+            with open('auto_functions.json', 'r') as f:
+                loaded_functions = json.load(f)
+            
+            self.state.auto_functions = loaded_functions
+            print("Auto functions loaded successfully")
+        except FileNotFoundError:
+            print("No saved auto functions found. Starting with empty set.")
+        except json.JSONDecodeError:
+            print("Error decoding saved auto functions. Starting with empty set.")
 
-    def get_auto_functions(self):
-        return self.state.auto_functions
+    def execute_auto_function(self, function_name, *args):
+        if function_name in self.auto_functions:
+            return self.auto_functions[function_name](*args)
+        else:
+            print(f"Auto function '{function_name}' not found")
+
+    def update_auto_function_param(self, function_name, new_param):
+        if function_name in self.auto_functions:
+            # Update the parameter for the specified auto function
+            # This is a simplified example; you may need to adjust based on your specific needs
+            self.auto_functions[function_name].__defaults__ = (new_param,)
+        else:
+            raise AttributeError(f"Auto function '{function_name}' not found")
+
+    def check_stealth_connection(self):
+        try:
+            self.py_stealth.Self()  # This will attempt to connect to Stealth
+            return True
+        except SocketError as e:
+            if e.errno == ECONNREFUSED:
+                print("Connection to Stealth client failed. Please ensure Stealth is running.")
+            else:
+                print(f"An unexpected error occurred: {str(e)}")
+            return False
+
+    def reconnect_to_stealth(self, max_attempts=5, delay=2):
+        for attempt in range(max_attempts):
+            print(f"Attempting to reconnect to Stealth (attempt {attempt + 1}/{max_attempts})...")
+            if self.check_stealth_connection():
+                print("Successfully reconnected to Stealth.")
+                return True
+            time.sleep(delay)
+        print("Failed to reconnect to Stealth after multiple attempts.")
+        return False
 
     def _prepare_script_namespace(self):
         script_namespace = globals().copy()
@@ -362,3 +417,56 @@ class MainController:
 
         script_namespace['controller'] = self
         return script_namespace
+
+    def initialize_stealth_connection(self):
+        print("Initializing Stealth connection...")
+        if self.check_stealth_connection():
+            print("Successfully connected to Stealth.")
+            return True
+        else:
+            print("Failed to connect to Stealth. Please ensure Stealth is running.")
+            return False
+
+    def main_loop(self):
+        print("Entering main loop...")
+        while True:
+            if not self.check_stealth_connection():
+                print("Lost connection to Stealth. Attempting to reconnect...")
+                if not self.reconnect_to_stealth():
+                    print("Failed to reconnect. Exiting main loop.")
+                    break
+
+            if self.state.auto_functions_enabled:
+                self.run_enabled_auto_functions()
+
+            time.sleep(1)  # Adjust this value as needed
+        
+        print("Exiting main loop.")
+
+    def save_auto_functions(self):
+        print("Saving auto functions...")
+        serializable_auto_functions = {}
+        for category, functions in self.state.auto_functions.items():
+            serializable_auto_functions[category] = {}
+            for func_name, func_data in functions.items():
+                serializable_auto_functions[category][func_name] = {
+                    'order': func_data.get('order', 0),
+                    'enabled': func_data.get('enabled', False),
+                    'hotkey': func_data.get('hotkey', ''),
+                    'path': func_data.get('path', '')
+                }
+
+        with open('auto_functions.json', 'w') as f:
+            json.dump(serializable_auto_functions, f, indent=2)
+        print("Auto functions saved")
+        
+        # Debug: print the contents of the saved file
+        with open('auto_functions.json', 'r') as f:
+            print("Saved auto functions:")
+            print(f.read())
+
+    def update_auto_function_order(self, func_name, order):
+        for category, functions in self.state.auto_functions.items():
+            if func_name in functions:
+                functions[func_name]['order'] = order
+                break

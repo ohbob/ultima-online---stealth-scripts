@@ -1,3 +1,5 @@
+import threading
+
 class State:
     def __init__(self):
         self.discovered_functions = {}
@@ -11,6 +13,7 @@ class State:
         self.auto_functions_enabled = False
         self.scripts_timeout = 1000
         self.auto_functions_timeout = 1000
+        self.auto_functions_lock = threading.Lock()
 
     def update_hotkeys(self, hotkeys):
         self.hotkeys = hotkeys
@@ -53,8 +56,8 @@ class State:
         print(f"Loop {'enabled' if enabled else 'disabled'}")
 
     def set_auto_functions_enabled(self, enabled):
-        self.auto_functions_enabled = enabled
-        print(f"Auto functions {'enabled' if enabled else 'disabled'}")
+        with self.auto_functions_lock:
+            self.auto_functions_enabled = enabled
 
     def set_scripts_timeout(self, timeout):
         self.scripts_timeout = timeout
@@ -84,5 +87,9 @@ class State:
                 #     print(f"    Description: {func_data['description']}")
                 # if 'hotkey' in func_data:
                 #     print(f"    Hotkey: {func_data['hotkey']}")
+
+    def get_auto_functions_enabled(self):
+        with self.auto_functions_lock:
+            return self.auto_functions_enabled
 
     # Add other state-related methods

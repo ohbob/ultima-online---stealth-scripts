@@ -20,8 +20,8 @@ class AutoFunctionsTab(ttk.Frame):
         self.tree = self.create_treeview()
         self.tree.pack(fill=tk.BOTH, expand=True)
 
+        # Change the single-click binding to double-click
         self.tree.bind('<Double-1>', self.on_double_click)
-        self.tree.bind('<Button-1>', self.on_click)
 
         button_frame = ttk.Frame(self)
         button_frame.pack(fill=tk.X, padx=self.BUTTON_PADX, pady=self.BUTTON_PADY)
@@ -29,6 +29,10 @@ class AutoFunctionsTab(ttk.Frame):
         self.set_hotkey_button = self.create_button(button_frame, "Set Hotkey", self.set_hotkey)
         self.clear_hotkey_button = self.create_button(button_frame, "Clear Hotkey", self.clear_hotkey)
         self.run_once_button = self.create_button(button_frame, "Run Once", self.run_once)
+
+        # Replace text with arrow symbols for move up and down buttons
+        self.move_up_button = self.create_button(button_frame, "↑", self.move_up)
+        self.move_down_button = self.create_button(button_frame, "↓", self.move_down)
 
         self.auto_var = tk.BooleanVar(value=False)
         self.auto_text = tk.StringVar(value="Auto: Off")
@@ -43,17 +47,18 @@ class AutoFunctionsTab(ttk.Frame):
         self.timeout_entry.insert(0, self.DEFAULT_TIMEOUT)
         self.timeout_entry.bind('<FocusOut>', self.update_timeout)
 
+        # Bind drag and drop events
+        self.tree.bind('<ButtonPress-1>', self.on_press)
+        self.tree.bind('<B1-Motion>', self.on_motion)
+        self.tree.bind('<ButtonRelease-1>', self.on_release)
+
     def create_treeview(self):
-        tree = ttk.Treeview(self, columns=('V1', 'V2', 'V3', 'Hotkey', 'Enabled'), show='tree headings')
-        tree.heading('V1', text='V1')
-        tree.heading('V2', text='V2')
-        tree.heading('V3', text='V3')
+        tree = ttk.Treeview(self, columns=('Order', 'Hotkey', 'Enabled'), show='tree headings')
+        tree.heading('Order', text='Order')
         tree.heading('Hotkey', text='Hotkey')
         tree.heading('Enabled', text='Enabled')
         tree.column('#0', width=200)
-        tree.column('V1', width=50)
-        tree.column('V2', width=50)
-        tree.column('V3', width=50)
+        tree.column('Order', width=50)
         tree.column('Hotkey', width=100)
         tree.column('Enabled', width=50)
         tree.tag_configure('enabled', background='lightgreen')
@@ -65,47 +70,24 @@ class AutoFunctionsTab(ttk.Frame):
         if region == "cell":
             column = self.tree.identify_column(event.x)
             item = self.tree.identify_row(event.y)
-            if column in ('#1', '#2', '#3'):  # V1, V2, V3 columns
-                self.edit_cell(item, column)
-
-    def on_click(self, event):
-        region = self.tree.identify("region", event.x, event.y)
-        if region == "cell":
-            column = self.tree.identify_column(event.x)
-            item = self.tree.identify_row(event.y)
-            if column == '#5':  # Enabled column
+            if column == '#3':  # Enabled column
                 self.toggle_enabled(item)
 
-    def edit_cell(self, item, column):
-        x, y, width, height = self.tree.bbox(item, column)
-        value = self.tree.set(item, column)
-        
-        entry = ttk.Entry(self.tree, width=width)
-        entry.place(x=x, y=y, width=width, height=height)
-        entry.insert(0, value)
-        entry.select_range(0, tk.END)
-        entry.focus()
-        entry.bind('<FocusOut>', lambda e: self.finish_edit(e, item, column))
-        entry.bind('<Return>', lambda e: self.finish_edit(e, item, column))
-
-    def finish_edit(self, event, item, column):
-        value = event.widget.get()
-        self.tree.set(item, column, value)
-        event.widget.destroy()
-        func_name = self.tree.item(item, 'text')
-        param_index = int(column[1]) - 1
-        self.main_controller.update_auto_function_param(func_name, param_index, value)
-
     def toggle_enabled(self, item):
+        func_name = self.tree.item(item, 'text')
         current_value = self.tree.set(item, 'Enabled')
         new_value = 'No' if current_value == 'Yes' else 'Yes'
+        enabled = new_value == 'Yes'
+        
+        # Update the function state in the main controller
+        self.main_controller.toggle_auto_function(func_name, enabled)
+        
+        # Update the tree view
         self.tree.set(item, 'Enabled', new_value)
-        func_name = self.tree.item(item, 'text')
-        self.main_controller.toggle_auto_function(func_name, new_value == 'Yes')
-        self.update_enabled_status(func_name, new_value == 'Yes')
+        self.tree.item(item, tags=('enabled' if enabled else 'disabled',))
 
     def create_button(self, parent, text, command):
-        button = ttk.Button(parent, text=text, command=command)
+        button = ttk.Button(parent, text=text, command=command, width=2 if len(text) == 1 else None)
         button.pack(side=tk.LEFT, padx=self.BUTTON_PADX)
         return button
 
@@ -113,14 +95,14 @@ class AutoFunctionsTab(ttk.Frame):
         selected = self.tree.selection()
         if selected:
             item = selected[0]
-            func_name = self.tree.item(item, 'values')[0]
+            func_name = self.tree.item(item, 'text')
             self.main_controller.set_hotkey(func_name)
 
     def clear_hotkey(self):
         selected = self.tree.selection()
         if selected:
             item = selected[0]
-            func_name = self.tree.item(item, 'values')[0]
+            func_name = self.tree.item(item, 'text')
             self.main_controller.clear_hotkey(func_name)
 
     def run_once(self):
@@ -170,20 +152,42 @@ class AutoFunctionsTab(ttk.Frame):
 
             print(f"Adding category: {'.'.join(category_parts)} with {len(functions)} functions")
             for func_name, func_data in functions.items():
-                values = (
-                    func_data.get('variable1', ''),
-                    func_data.get('variable2', ''),
-                    func_data.get('variable3', ''),
+                values = [
+                    func_data.get('order', ''),
                     func_data.get('hotkey', ''),
                     'Yes' if func_data.get('enabled', False) else 'No'
-                )
+                ]
                 tag = 'enabled' if func_data.get('enabled', False) else 'disabled'
                 self.tree.insert(parent, 'end', text=func_name, values=values, tags=(tag,))
         print("Auto Functions tab tree population complete")
 
+    def move_up(self):
+        selected = self.tree.selection()
+        if selected:
+            for item in selected:
+                idx = self.tree.index(item)
+                if idx > 0:
+                    self.tree.move(item, self.tree.parent(item), idx-1)
+            self.update_order()
+
+    def move_down(self):
+        selected = self.tree.selection()
+        if selected:
+            for item in reversed(selected):
+                idx = self.tree.index(item)
+                self.tree.move(item, self.tree.parent(item), idx+1)
+            self.update_order()
+
+    def update_order(self):
+        for idx, item in enumerate(self.tree.get_children(), start=1):
+            self.tree.set(item, 'Order', str(idx))
+            func_name = self.tree.item(item, 'text')
+            self.main_controller.update_auto_function_order(func_name, idx)
+        self.main_controller.save_auto_functions()
+
     def update_enabled_status(self, func_name, enabled):
         for item in self.tree.get_children():
-            if self.tree.item(item, 'values')[0] == func_name:
+            if self.tree.item(item, 'text') == func_name:
                 self.tree.item(item, tags=('enabled' if enabled else 'disabled',))
                 self.tree.set(item, 'Enabled', 'Yes' if enabled else 'No')
                 break
@@ -192,4 +196,24 @@ class AutoFunctionsTab(ttk.Frame):
         timeout = self.timeout_entry.get()
         self.main_controller.set_auto_functions_timeout(timeout)
 
-    # Remove the refresh_ui method if it's not being used elsewhere
+    def on_press(self, event):
+        item = self.tree.identify_row(event.y)
+        if item:
+            self.tree.selection_set(item)
+            self.drag_start_y = event.y
+            self.drag_item = item
+
+    def on_motion(self, event):
+        if hasattr(self, 'drag_item'):
+            moved_y = event.y - self.drag_start_y
+            if abs(moved_y) >= 20:  # Threshold to start dragging
+                target = self.tree.identify_row(event.y)
+                if target and self.tree.parent(target) == self.tree.parent(self.drag_item):
+                    self.tree.move(self.drag_item, self.tree.parent(self.drag_item), self.tree.index(target))
+                    self.drag_start_y = event.y
+
+    def on_release(self, event):
+        if hasattr(self, 'drag_item'):
+            del self.drag_item
+            del self.drag_start_y
+            self.update_order()

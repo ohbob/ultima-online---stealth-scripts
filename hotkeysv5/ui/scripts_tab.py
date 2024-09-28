@@ -109,12 +109,26 @@ class ScriptsTab(ttk.Frame):
     def toggle_loop_function(self):
         new_state = not self.loop_var.get()
         self.update_loop_button_state(new_state)
-        self.main_controller.set_loop_state(new_state)
+        if new_state:
+            self.start_loop()
+        else:
+            self.stop_loop()
 
-    def toggle_hotkey_function(self):
-        new_state = not self.hotkey_var.get()
-        self.update_hotkey_button_state(new_state)
-        self.main_controller.set_hotkeys_state(new_state)
+    def start_loop(self):
+        selected = self.tree.selection()
+        if selected:
+            item = selected[0]
+            if self.tree.parent(item):  # Check if the selected item is not a folder
+                func_name = self.tree.item(item, 'text')
+                timeout = int(self.timeout_entry.get())
+                self.main_controller.scripts_controller.run_script(func_name, loop=True, timeout=timeout)
+            else:
+                print("Please select a script, not a folder.")
+        else:
+            print("Please select a script to run in a loop.")
+
+    def stop_loop(self):
+        self.main_controller.scripts_controller.stop_loop_execution()
 
     def update_timeout(self, event):
         timeout = self.timeout_entry.get()
@@ -173,5 +187,9 @@ class ScriptsTab(ttk.Frame):
     def run_script(self, func_name):
         loop = self.loop_var.get()
         timeout = int(self.timeout_entry.get())
-        self.main_controller.set_scripts_timeout(timeout)
-        self.main_controller.run_script(func_name, loop, timeout)
+        self.main_controller.scripts_controller.run_script(func_name, loop=loop, timeout=timeout)
+
+    def toggle_hotkey_function(self):
+        new_state = not self.hotkey_var.get()
+        self.update_hotkey_button_state(new_state)
+        self.main_controller.set_hotkeys_state(new_state)
