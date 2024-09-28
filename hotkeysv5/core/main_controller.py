@@ -130,7 +130,6 @@ class MainController:
             for func_name, func_data in functions.items():
                 serialized[category][func_name] = {
                     'enabled': func_data.get('enabled', False),
-                    'order': func_data.get('order', 0),
                     'path': func_data.get('path', ''),
                     'hotkey': func_data.get('hotkey', '')
                 }
@@ -149,17 +148,24 @@ class MainController:
             self.state.hotkeys = config.get('hotkeys', {})
             self.state.friends = config.get('friends', [])
             self.state.pets = config.get('pets', [])
-            self.state.auto_functions = config.get('auto_functions', {})
             
-            # Update the controllers with the loaded data
+            loaded_auto_functions = config.get('auto_functions', {})
+            
+            for category, functions in loaded_auto_functions.items():
+                if category not in self.state.auto_functions:
+                    self.state.auto_functions[category] = {}
+                for func_name, func_data in functions.items():
+                    if func_name in self.state.auto_functions[category]:
+                        self.state.auto_functions[category][func_name].update(func_data)
+                    else:
+                        self.state.auto_functions[category][func_name] = func_data
+            
             self.friends_controller.set_friends(self.state.friends)
             self.pets_controller.set_pets(self.state.pets)
             
-            # Update the UI if it's already set
             if self.ui:
                 self.update_ui_after_config_load()
             
-            print("Configuration loaded successfully")
         except FileNotFoundError:
             print("No configuration file found. Starting with default settings.")
         except json.JSONDecodeError:
@@ -412,23 +418,14 @@ class MainController:
 
     def run_enabled_auto_functions(self):
         start_time = time.time()
-        ordered_functions = []
         for category, functions in self.state.auto_functions.items():
             for func_name, func_data in functions.items():
                 if func_data.get('enabled', False):
-                    ordered_functions.append((func_name, func_data))
-        
-        # Sort the functions based on their order
-        ordered_functions.sort(key=lambda x: x[1].get('order', 0))
-
-        for func_name, func_data in ordered_functions:
-            print(f"Running auto function: {func_name}")
-            self.run_auto_function(func_name, loop=False, timeout=self.state.auto_functions_timeout)
+                    self.run_auto_function(func_name, loop=False, timeout=self.state.auto_functions_timeout)
         
         elapsed_time = (time.time() - start_time) * 1000
         if elapsed_time < self.state.auto_functions_timeout:
             sleep_time = (self.state.auto_functions_timeout - elapsed_time) / 1000
-            print(f"Sleeping for {sleep_time:.2f} seconds")
             time.sleep(sleep_time)
 
     def load_auto_functions(self):
@@ -519,7 +516,6 @@ class MainController:
         print("Exiting main loop.")
 
     def save_auto_functions(self):
-        print("Saving auto functions...")
         serializable_auto_functions = {}
         for category, functions in self.state.auto_functions.items():
             serializable_auto_functions[category] = {}
@@ -533,15 +529,13 @@ class MainController:
 
         with open('auto_functions.json', 'w') as f:
             json.dump(serializable_auto_functions, f, indent=2)
-        print("Auto functions saved")
-        
-        # Debug: print the contents of the saved file
-        with open('auto_functions.json', 'r') as f:
-            print("Saved auto functions:")
-            print(f.read())
 
-    def update_auto_function_order(self, func_name, order):
+    def update_auto_functions_order(self, new_order):
+        updated_auto_functions = {}
         for category, functions in self.state.auto_functions.items():
-            if func_name in functions:
-                functions[func_name]['order'] = order
-                break
+            updated_auto_functions[category] = {}
+            for func_name in new_order:
+                if func_name in functions:
+                    updated_auto_functions[category][func_name] = functions[func_name]
+        self.state.auto_functions = updated_auto_functions
+        self.save_config()

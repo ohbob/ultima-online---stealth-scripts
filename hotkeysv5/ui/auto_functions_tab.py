@@ -53,12 +53,10 @@ class AutoFunctionsTab(ttk.Frame):
         self.tree.bind('<ButtonRelease-1>', self.on_release)
 
     def create_treeview(self):
-        tree = ttk.Treeview(self, columns=('Order', 'Hotkey', 'Enabled'), show='tree headings')
-        tree.heading('Order', text='Order')
+        tree = ttk.Treeview(self, columns=('Hotkey', 'Enabled'), show='tree headings')
         tree.heading('Hotkey', text='Hotkey')
         tree.heading('Enabled', text='Enabled')
         tree.column('#0', width=200)
-        tree.column('Order', width=50)
         tree.column('Hotkey', width=100)
         tree.column('Enabled', width=50)
         tree.tag_configure('enabled', background='lightgreen')
@@ -66,12 +64,19 @@ class AutoFunctionsTab(ttk.Frame):
         return tree
 
     def on_double_click(self, event):
-        region = self.tree.identify("region", event.x, event.y)
-        if region == "cell":
-            column = self.tree.identify_column(event.x)
-            item = self.tree.identify_row(event.y)
-            if column == '#3':  # Enabled column
-                self.toggle_enabled(item)
+        item = self.tree.identify('item', event.x, event.y)
+        if item:
+            func_name = self.tree.item(item, 'text')
+            current_value = self.tree.set(item, 'Enabled')
+            new_value = 'No' if current_value == 'Yes' else 'Yes'
+            enabled = new_value == 'Yes'
+            
+            # Update the function state in the main controller
+            self.main_controller.toggle_auto_function(func_name, enabled)
+            
+            # Update the tree view
+            self.tree.set(item, 'Enabled', new_value)
+            self.tree.item(item, tags=('enabled' if enabled else 'disabled',))
 
     def toggle_enabled(self, item):
         func_name = self.tree.item(item, 'text')
@@ -133,10 +138,8 @@ class AutoFunctionsTab(ttk.Frame):
         )
 
     def populate_tree(self):
-        print("Populating Auto Functions tab tree...")
         self.tree.delete(*self.tree.get_children())
         auto_functions = self.main_controller.get_auto_functions()
-        print(f"Found {len(auto_functions)} categories of auto functions")
         
         for category, functions in auto_functions.items():
             category_parts = category.split('.')
@@ -150,16 +153,13 @@ class AutoFunctionsTab(ttk.Frame):
                     self.tree.insert(parent, 'end', full_path, text=part, open=True)
                 parent = full_path
 
-            print(f"Adding category: {'.'.join(category_parts)} with {len(functions)} functions")
             for func_name, func_data in functions.items():
                 values = [
-                    func_data.get('order', ''),
                     func_data.get('hotkey', ''),
                     'Yes' if func_data.get('enabled', False) else 'No'
                 ]
                 tag = 'enabled' if func_data.get('enabled', False) else 'disabled'
                 self.tree.insert(parent, 'end', text=func_name, values=values, tags=(tag,))
-        print("Auto Functions tab tree population complete")
 
     def move_up(self):
         selected = self.tree.selection()
@@ -179,11 +179,11 @@ class AutoFunctionsTab(ttk.Frame):
             self.update_order()
 
     def update_order(self):
-        for idx, item in enumerate(self.tree.get_children(), start=1):
-            self.tree.set(item, 'Order', str(idx))
+        new_order = []
+        for item in self.tree.get_children():
             func_name = self.tree.item(item, 'text')
-            self.main_controller.update_auto_function_order(func_name, idx)
-        self.main_controller.save_auto_functions()
+            new_order.append(func_name)
+        self.main_controller.update_auto_functions_order(new_order)
 
     def update_enabled_status(self, func_name, enabled):
         for item in self.tree.get_children():

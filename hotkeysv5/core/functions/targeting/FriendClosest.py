@@ -17,7 +17,7 @@ def main(main_controller):
         if found_friends:
             closest_friend = min(found_friends, key=lambda x: GetDistance(x))
             TargetToObject(closest_friend)
-            ClientPrintEx(closest_friend, 44, 3, f"TARGET")
-            ClientPrintEx(closest_friend, 44, 3, "↓")
+            ClientPrintEx(closest_friend, 65, 3, f"FRIEND")
+            ClientPrintEx(closest_friend, 65, 3, "↓")
         else:
             ClientPrintEx(Self(), 1, 3, "No friends found nearby.")

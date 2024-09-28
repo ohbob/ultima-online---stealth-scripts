@@ -26,8 +26,8 @@ def main(main_controller):
             # Sort by HP (ascending) and then by distance (ascending)
             closest_pet = min(found_pets, key=lambda x: (x[1], x[2]))[0]
             TargetToObject(closest_pet)
-            ClientPrintEx(closest_pet, 44, 3, f"TARGET")
-            ClientPrintEx(closest_pet, 44, 3, "↓")
+            ClientPrintEx(closest_pet, 65, 3, f"PET")
+            ClientPrintEx(closest_pet, 65, 3, "↓")
         else:
             ClientPrintEx(Self(), 1, 3, "No injured pets found nearby.")
 

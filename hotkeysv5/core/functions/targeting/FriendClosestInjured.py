@@ -26,8 +26,8 @@ def main(main_controller):
             # Sort by HP (ascending) and then by distance (ascending)
             closest_friend = min(found_friends, key=lambda x: (x[1], x[2]))[0]
             TargetToObject(closest_friend)
-            ClientPrintEx(closest_friend, 44, 3, f"TARGET")
-            ClientPrintEx(closest_friend, 44, 3, "↓")
+            ClientPrintEx(closest_friend, 65, 3, f"FRIEND")
+            ClientPrintEx(closest_friend, 65, 3, "↓")
         else:
             ClientPrintEx(Self(), 1, 3, "No injured friends found nearby.")
 

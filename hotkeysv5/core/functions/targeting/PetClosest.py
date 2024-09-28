@@ -17,7 +17,7 @@ def main(main_controller):
         if found_pets:
             closest_pet = min(found_pets, key=lambda x: GetDistance(x))
             TargetToObject(closest_pet)
-            ClientPrintEx(closest_pet, 44, 3, f"TARGET")
-            ClientPrintEx(closest_pet, 44, 3, "↓")
+            ClientPrintEx(closest_pet, 65, 3, f"PET")
+            ClientPrintEx(closest_pet, 65, 3, "↓")
         else:
             ClientPrintEx(Self(), 1, 3, "No pets found nearby.")
