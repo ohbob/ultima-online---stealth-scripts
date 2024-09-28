@@ -131,7 +131,7 @@ class AutoFunctionsTab(ttk.Frame):
                 func_name = self.tree.item(item, 'text')
                 timeout = int(self.timeout_entry.get())
                 self.main_controller.set_auto_functions_timeout(timeout)
-                self.main_controller.run_script(func_name, loop=False, timeout=timeout)
+                self.main_controller.run_auto_function(func_name, loop=False, timeout=timeout)
             else:
                 print("Please select a script, not a folder.")
         else:

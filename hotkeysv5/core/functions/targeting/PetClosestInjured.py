@@ -19,7 +19,7 @@ def main(main_controller):
         for item in GetFoundList():
             if item in pet_ids:
                 hp = GetHP(item)
-                if 0 < hp < 25:  # Check HP
+                if hp > 0 and hp < 25:  # Check if HP is larger than 0 but smaller than 25
                     found_pets.append((item, hp, GetDistance(item)))  # Store item, HP, and distance
 
         if found_pets:

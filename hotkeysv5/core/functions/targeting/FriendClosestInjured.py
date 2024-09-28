@@ -19,7 +19,7 @@ def main(main_controller):
         for item in GetFoundList():
             if item in friend_ids:
                 hp = GetHP(item)
-                if 0 < hp < 25:  # Check HP
+                if hp > 0 and hp < 25:  # Check HP
                     found_friends.append((item, hp, GetDistance(item)))  # Store item, HP, and distance
 
         if found_friends:

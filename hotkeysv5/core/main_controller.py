@@ -8,6 +8,7 @@ from core.state import State
 import importlib
 import sys
 import io
+import time
 from contextlib import redirect_stdout
 from core.py_stealth import *
 from core.uo_globals import *  # Import the global functions
@@ -145,12 +146,11 @@ class MainController:
     def get_auto_functions(self):
         return self.state.auto_functions
 
-    def run_script(self, func_name, loop, timeout):
+    def run_script(self, func_name, loop=False, timeout=None):
         print(f"Running script: {func_name}")
         print(f"Loop: {'Enabled' if loop else 'Disabled'}")
-        print(f"Timeout: {timeout} ms")
+        print(f"Timeout: {timeout if timeout is not None else 'Default'} ms")
 
-        # Find the script file path and function data
         script_path = None
         func_data = None
         for category, functions in self.state.discovered_functions.items():
@@ -158,55 +158,102 @@ class MainController:
                 func_data = functions[func_name]
                 script_path = func_data.get('path')
                 break
-        
-        if script_path is None:
-            for category, functions in self.state.auto_functions.items():
-                if func_name in functions:
-                    func_data = functions[func_name]
-                    script_path = func_data.get('path')
-                    break
 
         if script_path and func_data:
-            # Capture the output
-            captured_output = io.StringIO()
-            with redirect_stdout(captured_output):
-                try:
-                    # Create a new namespace for the script
-                    script_namespace = globals().copy()
-                    
-                    # Add all py_stealth functions to the namespace
-                    for name, func in globals().items():
-                        if callable(func) and not name.startswith('__'):
-                            script_namespace[name] = func
-                    
-                    # Add all uo_globals functions to the namespace
-                    import core.uo_globals
-                    for name, func in vars(core.uo_globals).items():
-                        if callable(func) and not name.startswith('__'):
-                            script_namespace[name] = func
+            self._execute_script(script_path, func_data, func_name, loop, timeout)
+        else:
+            print(f"Script file for {func_name} not found.")
 
-                    # Execute the script
-                    with open(script_path, 'r') as script_file:
-                        script_code = script_file.read()
-                        exec(script_code, script_namespace)
+    def run_auto_function(self, func_name, loop=False, timeout=None):
+        print(f"Running auto function: {func_name}")
+        print(f"Loop: {'Enabled' if loop else 'Disabled'}")
+        print(f"Timeout: {timeout if timeout is not None else 'Default'} ms")
 
-                    if 'main' in script_namespace:
-                        # Check if the main function expects an argument
-                        import inspect
-                        main_func = script_namespace['main']
-                        if len(inspect.signature(main_func).parameters) > 0:
+        script_path = None
+        func_data = None
+        for category, functions in self.state.auto_functions.items():
+            if func_name in functions:
+                func_data = functions[func_name]
+                script_path = func_data.get('path')
+                break
+
+        if script_path and func_data:
+            self._execute_auto_function(script_path, func_data, func_name, loop, timeout)
+        else:
+            print(f"Auto function script for {func_name} not found.")
+
+    def _execute_script(self, script_path, func_data, func_name, loop, timeout):
+        captured_output = io.StringIO()
+        with redirect_stdout(captured_output):
+            try:
+                script_namespace = self._prepare_script_namespace()
+                
+                with open(script_path, 'r') as script_file:
+                    script_code = script_file.read()
+                    exec(script_code, script_namespace)
+
+                if 'main' in script_namespace:
+                    main_func = script_namespace['main']
+                    if loop:
+                        start_time = time.time()
+                        while True:
+                            if 'main_controller' in main_func.__code__.co_varnames:
+                                main_func(self)
+                            else:
+                                main_func()
+                            if timeout and (time.time() - start_time) * 1000 >= timeout:
+                                break
+                    else:
+                        if 'main_controller' in main_func.__code__.co_varnames:
                             main_func(self)
                         else:
                             main_func()
-                    else:
-                        print(f"Error: 'main' function not found in {func_name}")
-                except Exception as e:
-                    print(f"Error executing {func_name}: {str(e)}")
+                else:
+                    print(f"Error: 'main' function not found in {func_name}")
+            except Exception as e:
+                print(f"Error executing {func_name}: {str(e)}")
+                import traceback
+                traceback.print_exc()
 
-            # Print the captured output
-            print(captured_output.getvalue())
-        else:
-            print(f"Script file for {func_name} not found.")
+        print(captured_output.getvalue())
+
+    def _execute_auto_function(self, script_path, func_data, func_name, loop, timeout):
+        captured_output = io.StringIO()
+        with redirect_stdout(captured_output):
+            try:
+                script_namespace = self._prepare_script_namespace()
+                
+                with open(script_path, 'r') as script_file:
+                    script_code = script_file.read()
+                    exec(script_code, script_namespace)
+
+                if 'main' in script_namespace:
+                    main_func = script_namespace['main']
+                    args = self._prepare_auto_function_args(func_data)
+                    if loop:
+                        start_time = time.time()
+                        while True:
+                            main_func(*args)
+                            if timeout and (time.time() - start_time) * 1000 >= timeout:
+                                break
+                    else:
+                        main_func(*args)
+                else:
+                    print(f"Error: 'main' function not found in {func_name}")
+            except Exception as e:
+                print(f"Error executing {func_name}: {str(e)}")
+                import traceback
+                traceback.print_exc()
+
+        print(captured_output.getvalue())
+
+    def _prepare_auto_function_args(self, func_data):
+        args = []
+        for i in range(1, 4):  # Assuming a maximum of 3 variables
+            var_name = f'variable{i}'
+            if var_name in func_data:
+                args.append(func_data[var_name])
+        return args
 
     def update_auto_function_param(self, func_name, param_index, value):
         for category, functions in self.state.auto_functions.items():
@@ -301,128 +348,17 @@ class MainController:
     def get_auto_functions(self):
         return self.state.auto_functions
 
-    def run_script(self, func_name, loop, timeout):
-        print(f"Running script: {func_name}")
-        print(f"Loop: {'Enabled' if loop else 'Disabled'}")
-        print(f"Timeout: {timeout} ms")
-
-        # Find the script file path and function data
-        script_path = None
-        func_data = None
-        for category, functions in self.state.discovered_functions.items():
-            if func_name in functions:
-                func_data = functions[func_name]
-                script_path = func_data.get('path')
-                break
+    def _prepare_script_namespace(self):
+        script_namespace = globals().copy()
         
-        if script_path is None:
-            for category, functions in self.state.auto_functions.items():
-                if func_name in functions:
-                    func_data = functions[func_name]
-                    script_path = func_data.get('path')
-                    break
-
-        if script_path and func_data:
-            # Capture the output
-            captured_output = io.StringIO()
-            with redirect_stdout(captured_output):
-                try:
-                    # Create a new namespace for the script
-                    script_namespace = globals().copy()
-                    
-                    # Add all py_stealth functions to the namespace
-                    for name, func in globals().items():
-                        if callable(func) and not name.startswith('__'):
-                            script_namespace[name] = func
-                    
-                    # Add all uo_globals functions to the namespace
-                    import core.uo_globals
-                    for name, func in vars(core.uo_globals).items():
-                        if callable(func) and not name.startswith('__'):
-                            script_namespace[name] = func
-
-                    # Execute the script
-                    with open(script_path, 'r') as script_file:
-                        script_code = script_file.read()
-                        exec(script_code, script_namespace)
-
-                    if 'main' in script_namespace:
-                        # Check if the main function expects an argument
-                        import inspect
-                        main_func = script_namespace['main']
-                        if len(inspect.signature(main_func).parameters) > 0:
-                            main_func(self)
-                        else:
-                            main_func()
-                    else:
-                        print(f"Error: 'main' function not found in {func_name}")
-                except Exception as e:
-                    print(f"Error executing {func_name}: {str(e)}")
-
-            # Print the captured output
-            print(captured_output.getvalue())
-        else:
-            print(f"Script file for {func_name} not found.")
-
-    def run_script(self, func_name, loop, timeout):
-        print(f"Running script: {func_name}")
-        print(f"Loop: {'Enabled' if loop else 'Disabled'}")
-        print(f"Timeout: {timeout} ms")
-
-        # Find the script file path and function data
-        script_path = None
-        func_data = None
-        for category, functions in self.state.discovered_functions.items():
-            if func_name in functions:
-                func_data = functions[func_name]
-                script_path = func_data.get('path')
-                break
+        for name, func in globals().items():
+            if callable(func) and not name.startswith('__'):
+                script_namespace[name] = func
         
-        if script_path is None:
-            for category, functions in self.state.auto_functions.items():
-                if func_name in functions:
-                    func_data = functions[func_name]
-                    script_path = func_data.get('path')
-                    break
+        import core.uo_globals
+        for name, func in vars(core.uo_globals).items():
+            if callable(func) and not name.startswith('__'):
+                script_namespace[name] = func
 
-        if script_path and func_data:
-            # Capture the output
-            captured_output = io.StringIO()
-            with redirect_stdout(captured_output):
-                try:
-                    # Create a new namespace for the script
-                    script_namespace = globals().copy()
-                    
-                    # Add all py_stealth functions to the namespace
-                    for name, func in globals().items():
-                        if callable(func) and not name.startswith('__'):
-                            script_namespace[name] = func
-                    
-                    # Add all uo_globals functions to the namespace
-                    import core.uo_globals
-                    for name, func in vars(core.uo_globals).items():
-                        if callable(func) and not name.startswith('__'):
-                            script_namespace[name] = func
-
-                    # Execute the script
-                    with open(script_path, 'r') as script_file:
-                        script_code = script_file.read()
-                        exec(script_code, script_namespace)
-
-                    if 'main' in script_namespace:
-                        # Check if the main function expects an argument
-                        import inspect
-                        main_func = script_namespace['main']
-                        if len(inspect.signature(main_func).parameters) > 0:
-                            main_func(self)
-                        else:
-                            main_func()
-                    else:
-                        print(f"Error: 'main' function not found in {func_name}")
-                except Exception as e:
-                    print(f"Error executing {func_name}: {str(e)}")
-
-            # Print the captured output
-            print(captured_output.getvalue())
-        else:
-            print(f"Script file for {func_name} not found.")
+        script_namespace['controller'] = self
+        return script_namespace
