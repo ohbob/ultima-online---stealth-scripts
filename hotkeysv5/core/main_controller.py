@@ -589,5 +589,6 @@ class MainController:
 
     def stop(self):
         if self.hotkey_controller.listener:
-            self.hotkey_controller.listener.stop()
+            pass
+            # self.hotkey_controller.listener.stop()
         # ... existing code ...

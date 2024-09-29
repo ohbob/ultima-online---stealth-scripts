@@ -9,7 +9,9 @@ class MainUI:
     def __init__(self, root, controller):
         self.root = root
         self.controller = controller  # Changed from main_controller to controller
-        self.root.title("Ultima Online Assistant")
+        self.root.title("Stealth Assistant")
+        self.root.geometry("500x300")  # Example dimensions: 800x600
+
         self.create_widgets()
 
         # Bind the key press event to the root window

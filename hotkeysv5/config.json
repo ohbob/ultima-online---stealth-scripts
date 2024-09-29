@@ -1,15 +1,16 @@
 {
-  "hotkeys_enabled": true,
+  "hotkeys_enabled": false,
   "loop_enabled": false,
   "auto_functions_enabled": false,
   "scripts_timeout": 1000,
-  "auto_functions_timeout": 0,
+  "auto_functions_timeout": 1000,
   "hotkeys": {
     "q": "PetClosest",
     "w": "FriendClosest",
     "e": "ShowLastTarget",
     "z": "addFriend",
     "x": "addPet",
+    "a+ctrl": "gh_self",
     "ctrl+f": "ToggleAutoFunctions",
     "ctrl+d": "ToggleHotkeys"
   },
@@ -71,19 +72,14 @@
   ],
   "auto_functions": {
     "auto": {
-      "Message": {
-        "enabled": false,
-        "path": "user/auto/Message.py",
+      "one": {
+        "enabled": true,
+        "path": "user/auto/one.py",
         "hotkey": ""
       },
       "three": {
-        "enabled": false,
+        "enabled": true,
         "path": "user/auto/three.py",
-        "hotkey": ""
-      },
-      "one": {
-        "enabled": false,
-        "path": "user/auto/one.py",
         "hotkey": ""
       },
       "AutoCastCure": {
@@ -97,13 +93,18 @@
         "hotkey": ""
       },
       "two": {
-        "enabled": false,
+        "enabled": true,
         "path": "user/auto/two.py",
         "hotkey": ""
       },
       "AutoHide": {
         "enabled": false,
         "path": "user/auto/AutoHide.py",
+        "hotkey": ""
+      },
+      "Message": {
+        "enabled": false,
+        "path": "user/auto/Message.py",
         "hotkey": ""
       }
     }
