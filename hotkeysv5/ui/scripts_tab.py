@@ -1,6 +1,7 @@
 import tkinter as tk
 from tkinter import ttk
 from tkinter import simpledialog
+import logging
 
 class ScriptsTab(ttk.Frame):
     BUTTON_PADX = 5
@@ -20,6 +21,8 @@ class ScriptsTab(ttk.Frame):
         self.create_widgets()
         self.current_hotkey = None
         self.listening_for_hotkey = False
+        self.logger = logging.getLogger(__name__)
+        self.logger.info("ScriptsTab initialized")
 
     def create_widgets(self):
         self.tree = self.create_treeview()
@@ -140,14 +143,23 @@ class ScriptsTab(ttk.Frame):
             if self.tree.parent(item):  # Check if the selected item is not a folder
                 func_name = self.tree.item(item, 'text')
                 timeout = int(self.timeout_entry.get())
-                self.main_controller.scripts_controller.run_script(func_name, loop=True, timeout=timeout)
+                self.main_controller.run_script_in_thread(func_name, loop=True, timeout=timeout)
             else:
                 print("Please select a script, not a folder.")
         else:
             print("Please select a script to run in a loop.")
 
     def stop_loop(self):
-        self.main_controller.scripts_controller.stop_loop_execution()
+        selected = self.tree.selection()
+        if selected:
+            item = selected[0]
+            if self.tree.parent(item):  # Check if the selected item is not a folder
+                func_name = self.tree.item(item, 'text')
+                self.main_controller.stop_script(func_name)
+            else:
+                print("Please select a script, not a folder.")
+        else:
+            print("Please select a script to stop its loop.")
 
     def update_timeout(self, event):
         timeout = self.timeout_entry.get()
@@ -211,6 +223,7 @@ class ScriptsTab(ttk.Frame):
         )
 
     def update_hotkey_button_state(self, state):
+        self.logger.info(f"Updating hotkey button state: {state}")
         self.hotkey_var.set(state)
         self.hotkey_text.set(f"Hotkey: {'On' if state else 'Off'}")
         self.toggle_hotkey_button.config(
@@ -228,9 +241,13 @@ class ScriptsTab(ttk.Frame):
     def run_script(self, func_name):
         loop = self.loop_var.get()
         timeout = int(self.timeout_entry.get())
-        self.main_controller.run_once(func_name)
+        if loop:
+            self.main_controller.run_script_in_thread(func_name, loop=True, timeout=timeout)
+        else:
+            self.main_controller.run_once(func_name)
 
     def toggle_hotkey_function(self):
+        self.logger.info("toggle_hotkey_function called")
         new_state = self.main_controller.toggle_all_hotkeys()
         self.update_hotkey_button_state(new_state)
 
@@ -250,8 +267,7 @@ class ScriptsTab(ttk.Frame):
             if hotkey:
                 self.main_controller.set_hotkey(hotkey, func_name)
                 self.tree.set(item, 'Hotkey', hotkey)
-                self.main_controller.save_hotkeys()
-                self.populate_tree()  # Ensure the tree is updated
+                self.populate_tree()
                 print(f"Hotkey '{hotkey}' set for function: {func_name}")
             else:
                 print("Please enter a hotkey")
@@ -262,13 +278,13 @@ class ScriptsTab(ttk.Frame):
         selected = self.tree.selection()
         if selected:
             item = selected[0]
-            if self.tree.parent(item):  # Check if the selected item is not a folder
+            if self.tree.parent(item):
                 func_name = self.tree.item(item, 'text')
                 hotkey = self.tree.set(item, 'Hotkey')
                 if hotkey:
                     self.main_controller.clear_hotkey(hotkey)
                     self.tree.set(item, 'Hotkey', '')
-                    self.main_controller.save_hotkeys()
+                    self.populate_tree()
                     print(f"Hotkey cleared for function '{func_name}'")
                 else:
                     print(f"No hotkey set for function '{func_name}'")

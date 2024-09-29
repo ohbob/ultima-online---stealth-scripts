@@ -17,9 +17,16 @@ from errno import ECONNREFUSED
 import threading
 import json
 from core.hotkey_controller import HotkeyController
+import queue
+import logging
 
 class MainController:
     def __init__(self, py_stealth):
+        # Initialize logger at the beginning
+        logging.basicConfig(level=logging.DEBUG)
+        self.logger = logging.getLogger(__name__)
+        self.logger.info("Initializing MainController")
+
         self.py_stealth = py_stealth
         self.state = State()
         self.hotkeys_controller = HotkeysController(self.state)
@@ -35,7 +42,14 @@ class MainController:
         self.load_auto_functions()  # Load saved auto functions
         self.discover_all_functions()
         self.hotkey_controller = HotkeyController(self)
+        self.hotkey_controller.start()
         self.hotkeys = {}
+        self.event_queue = queue.Queue()
+        self.script_thread = None
+        self.script_stop_event = threading.Event()
+        self.script_threads = {}
+        self.script_queues = {}
+        self.script_stop_events = {}
 
         if not self.initialize_stealth_connection():
             raise ConnectionError("Failed to initialize Stealth connection")
@@ -46,6 +60,8 @@ class MainController:
 
         self.config_file = 'config.json'
         self.load_config()  # Load configuration at startup
+
+        self.logger.info("MainController initialized")
 
     def set_ui(self, ui):
         self.ui = ui
@@ -65,19 +81,21 @@ class MainController:
         self.save_config()
         if self.scripts_tab:
             self.scripts_tab.update_hotkeys_display(self.hotkey_controller.get_hotkeys())
-        self.print_current_state()
 
     def clear_hotkey(self, hotkey):
         self.hotkey_controller.clear_hotkey(hotkey)
         self.save_config()
-        self.print_current_state()
 
     def run_once(self, func_name):
-        print(f"Running function once: {func_name}")
-        if hasattr(self, 'scripts_controller'):
-            self.scripts_controller.run_script(func_name, loop=False)
+        self.logger.info(f"Running function once: {func_name}")
+        if func_name == 'ToggleAutoFunctions':
+            self.toggle_all_auto_functions()
+        elif func_name == 'ToggleHotkeys':
+            self.toggle_all_hotkeys()
+        elif hasattr(self, 'scripts_controller'):
+            self.scripts_controller.run_script(func_name)
         else:
-            print(f"Warning: Unable to run {func_name}. scripts_controller not found.")
+            self.logger.warning(f"Unable to run {func_name}. scripts_controller not found.")
 
     def handle_key_press(self, event):
         hotkey = self.get_hotkey_from_event(event)
@@ -129,19 +147,23 @@ class MainController:
         self.print_current_state()
         if self.ui and hasattr(self.ui, 'auto_functions_tab'):
             self.ui.auto_functions_tab.update_auto_button_state(new_state)
+        
+        # Add the notification
+        self.py_stealth.ClientPrintEx(self.py_stealth.Self(), 70 if new_state else 34, 3, f"* A-FUN {'ON' if new_state else 'OFF'} *")
+        
         return new_state
 
     def toggle_all_hotkeys(self):
         new_state = self.hotkey_controller.toggle_all_hotkeys()
         self.state.set_hotkeys_enabled(new_state)
-        
-        print(f"Hotkeys {'enabled' if new_state else 'disabled'}")
-        
-        # Update UI
-        if self.ui and hasattr(self.ui, 'scripts_tab'):
-            self.ui.scripts_tab.update_hotkey_button_state(new_state)
-        
         self.save_config()
+        self.logger.info(f"Hotkeys {'enabled' if new_state else 'disabled'}")
+        if self.scripts_tab:
+            self.scripts_tab.update_hotkey_button_state(new_state)
+        
+        # Add the notification
+        self.py_stealth.ClientPrintEx(self.py_stealth.Self(), 70 if new_state else 34, 3, f"* HOTKEYS {'ON' if new_state else 'OFF'} *")
+        
         return new_state
 
     def save_config(self):
@@ -175,8 +197,6 @@ class MainController:
 
     def load_config(self):
         try:
-            print("Hotkeys before loading config:", self.hotkey_controller.get_hotkeys())
-            
             with open(self.config_file, 'r') as f:
                 config = json.load(f)
             
@@ -188,6 +208,14 @@ class MainController:
             
             loaded_hotkeys = config.get('hotkeys', {})
             self.hotkey_controller.set_hotkeys(loaded_hotkeys)
+            
+            hotkeys_enabled = config.get('hotkeys_enabled', False)
+            self.state.set_hotkeys_enabled(hotkeys_enabled)
+            
+            if hotkeys_enabled:
+                self.hotkey_controller.start()
+            else:
+                self.hotkey_controller.stop()
             
             self.state.friends = config.get('friends', [])
             self.state.pets = config.get('pets', [])
@@ -209,14 +237,15 @@ class MainController:
             if self.ui:
                 self.update_ui_after_config_load()
             
-            print("Configuration loaded successfully")
-            print("Hotkeys after loading config:", self.hotkey_controller.get_hotkeys())
-            return loaded_hotkeys  # Return the loaded hotkeys
+            self.logger.info("Configuration loaded successfully")
+            self.logger.debug(f"Loaded hotkeys: {loaded_hotkeys}")
+            self.logger.debug(f"Hotkeys enabled: {hotkeys_enabled}")
+            return loaded_hotkeys
         except FileNotFoundError:
-            print("No configuration file found. Starting with default settings.")
+            self.logger.warning("No configuration file found. Starting with default settings.")
         except json.JSONDecodeError:
-            print("Error decoding configuration file. Starting with default settings.")
-        return {}  # Return an empty dict if loading fails
+            self.logger.error("Error decoding configuration file. Starting with default settings.")
+        return {}
 
     def update_ui_after_config_load(self):
         if hasattr(self.ui, 'friends_tab'):
@@ -592,3 +621,27 @@ class MainController:
             pass
             # self.hotkey_controller.listener.stop()
         # ... existing code ...
+
+    def run_hotkey_loop(self):
+        while True:
+            event = self.event_queue.get()
+            if event['type'] == 'script':
+                self.run_script_in_thread(event['func_name'], event['loop'], event['timeout'])
+            elif event['type'] == 'stop_script':
+                self.stop_script()
+
+    def run_in_main_thread(self, func):
+        self.ui.after(0, func)
+
+    def run_script_in_thread(self, func_name, loop=False, timeout=1000):
+        self.logger.info(f"Running script in thread: {func_name}, loop: {loop}, timeout: {timeout}")
+        self.scripts_controller.run_script(func_name, loop=loop, timeout=timeout)
+
+    def stop_script(self, func_name=None):
+        self.scripts_controller.stop_loop_execution(func_name)
+
+    def stop_all_scripts(self):
+        for func_name in list(self.script_stop_events.keys()):
+            self.stop_script(func_name)
+
+    # Make sure to call stop_all_scripts when closing the application

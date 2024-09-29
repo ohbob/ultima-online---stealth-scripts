@@ -1,5 +1,5 @@
 {
-  "hotkeys_enabled": false,
+  "hotkeys_enabled": true,
   "loop_enabled": false,
   "auto_functions_enabled": false,
   "scripts_timeout": 1000,
@@ -38,6 +38,10 @@
     {
       "name": "qq",
       "id": 69
+    },
+    {
+      "name": "a llama",
+      "id": 62979
     }
   ],
   "pets": [
