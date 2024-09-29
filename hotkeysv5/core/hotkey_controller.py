@@ -26,7 +26,8 @@ class HotkeyController:
 
         current_hotkey = frozenset(self.current_keys)
         self.logger.debug(f"Current keys: {current_hotkey}")
-        
+
+        # Always check for whitelisted hotkeys
         if current_hotkey in self.whitelisted_hotkeys:
             func_name = self.whitelisted_hotkeys[current_hotkey]
             self.logger.info(f"Whitelisted hotkey detected: {'+'.join(sorted(current_hotkey))} - Function: {func_name}")
@@ -37,11 +38,12 @@ class HotkeyController:
             threading.Thread(target=self.main_controller.run_once, args=(func_name,)).start()
 
     def on_release(self, key):
-        self.logger.debug(f"Key released: {key}")
-        if isinstance(key, keyboard.Key):
-            self.current_keys.discard(key.name.lower())
-        elif isinstance(key, keyboard.KeyCode):
-            self.current_keys.discard(key.char.lower())
+        try:
+            if key.char is not None:
+                self.current_keys.discard(key.char.lower())
+        except AttributeError:
+            # Handle special keys (e.g., function keys, arrow keys) that do not have a char attribute
+            self.current_keys.discard(str(key).lower())
 
     def start(self):
         if not self.listener:
