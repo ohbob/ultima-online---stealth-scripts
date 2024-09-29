@@ -104,6 +104,7 @@ class ScriptsTab(ttk.Frame):
             if hotkey:
                 self.main_controller.set_hotkey(func, hotkey)
                 self.tree.set(item, 'Hotkey', hotkey)
+                self.main_controller.save_hotkeys()
 
     def remove_hotkey(self):
         selected = self.tree.selection()
@@ -112,6 +113,7 @@ class ScriptsTab(ttk.Frame):
             func = self.tree.item(item, 'text').split(' (')[0]
             self.main_controller.remove_hotkey(func)
             self.tree.set(item, 'Hotkey', '')
+            self.main_controller.save_hotkeys()
 
     def launch_function(self):
         selected = self.tree.selection()
@@ -156,6 +158,9 @@ class ScriptsTab(ttk.Frame):
         discovered_functions = self.main_controller.get_discovered_functions()
         hotkeys = self.main_controller.hotkey_controller.get_hotkeys()
         
+        print(f"Discovered functions: {discovered_functions}")
+        print(f"Hotkeys: {hotkeys}")
+        
         for category, functions in discovered_functions.items():
             category_parts = category.split('.')
             parent = ''
@@ -167,15 +172,32 @@ class ScriptsTab(ttk.Frame):
             
             for func_name in functions:
                 hotkey = hotkeys.get(func_name, '')
+                print(f"Inserting function: {func_name}, hotkey: {hotkey}")
                 self.tree.insert(parent, 'end', text=func_name, values=(hotkey,))
-        
+
+        self.update_hotkeys_display(hotkeys)
         print(f"Populated tree with {len(hotkeys)} hotkeys")
 
     def update_hotkeys_display(self, hotkeys):
+        # Reverse the hotkeys dictionary to map function names to hotkeys
+        func_to_hotkey = {v: k for k, v in hotkeys.items()}
+        
+        def update_item(item):
+            # Check if the item is a function (leaf node) and not a category (parent node)
+            if not self.tree.get_children(item):  # If the item has no children, it's a function
+                func_name = self.tree.item(item, 'text').strip()
+                hotkey = func_to_hotkey.get(func_name, '')
+                print(f"Updating item: {item}, func_name: {func_name}, hotkey: {hotkey}")
+                self.tree.set(item, 'Hotkey', hotkey)
+            else:
+                # If the item is a category, recursively update its children
+                for child in self.tree.get_children(item):
+                    update_item(child)
+
+        # Start updating from the root items
         for item in self.tree.get_children():
-            func_name = self.tree.item(item, 'text')
-            hotkey = hotkeys.get(func_name, '')
-            self.tree.set(item, 'Hotkey', hotkey)
+            update_item(item)
+
         print(f"Updated hotkeys display with {len(hotkeys)} hotkeys")
 
     # Remove the refresh_ui method if it's not being used elsewhere
@@ -228,6 +250,8 @@ class ScriptsTab(ttk.Frame):
             if hotkey:
                 self.main_controller.set_hotkey(hotkey, func_name)
                 self.tree.set(item, 'Hotkey', hotkey)
+                self.main_controller.save_hotkeys()
+                self.populate_tree()  # Ensure the tree is updated
                 print(f"Hotkey '{hotkey}' set for function: {func_name}")
             else:
                 print("Please enter a hotkey")
@@ -244,6 +268,7 @@ class ScriptsTab(ttk.Frame):
                 if hotkey:
                     self.main_controller.clear_hotkey(hotkey)
                     self.tree.set(item, 'Hotkey', '')
+                    self.main_controller.save_hotkeys()
                     print(f"Hotkey cleared for function '{func_name}'")
                 else:
                     print(f"No hotkey set for function '{func_name}'")

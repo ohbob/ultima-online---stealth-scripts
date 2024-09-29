@@ -1,5 +1,5 @@
 {
-  "hotkeys_enabled": true,
+  "hotkeys_enabled": false,
   "loop_enabled": false,
   "auto_functions_enabled": false,
   "scripts_timeout": 1000,
@@ -8,6 +8,8 @@
     "q": "PetClosest",
     "w": "FriendClosest",
     "e": "ShowLastTarget",
+    "z": "addFriend",
+    "x": "addPet",
     "ctrl+f": "ToggleAutoFunctions",
     "ctrl+d": "ToggleHotkeys"
   },
@@ -38,14 +40,14 @@
         "path": "user/auto/Message.py",
         "hotkey": ""
       },
-      "three": {
-        "enabled": true,
-        "path": "user/auto/three.py",
-        "hotkey": ""
-      },
       "one": {
         "enabled": true,
         "path": "user/auto/one.py",
+        "hotkey": ""
+      },
+      "three": {
+        "enabled": true,
+        "path": "user/auto/three.py",
         "hotkey": ""
       },
       "AutoCastCure": {

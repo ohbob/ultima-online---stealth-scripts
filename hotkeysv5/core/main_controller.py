@@ -56,6 +56,9 @@ class MainController:
         self.update_ui_with_discovered_functions()  # Update UI after it's set
         if self.scripts_tab:
             self.scripts_tab.populate_tree()  # This will now populate the tree with hotkeys
+            hotkeys = self.hotkey_controller.get_hotkeys()
+            print("Setting UI with hotkeys:", hotkeys)
+            self.scripts_tab.update_hotkeys_display(hotkeys)  # Ensure hotkeys are displayed
 
     def set_hotkey(self, hotkey, func_name):
         self.hotkey_controller.setup_hotkey(hotkey, func_name)
@@ -176,6 +179,8 @@ class MainController:
 
     def load_config(self):
         try:
+            print("Hotkeys before loading config:", self.hotkey_controller.get_hotkeys())
+            
             with open(self.config_file, 'r') as f:
                 config = json.load(f)
             
@@ -209,6 +214,7 @@ class MainController:
                 self.update_ui_after_config_load()
             
             print("Configuration loaded successfully")
+            print("Hotkeys after loading config:", self.hotkey_controller.get_hotkeys())
             return loaded_hotkeys  # Return the loaded hotkeys
         except FileNotFoundError:
             print("No configuration file found. Starting with default settings.")
@@ -223,6 +229,9 @@ class MainController:
             self.ui.pets_tab.populate_tree()
         if hasattr(self.ui, 'scripts_tab'):
             self.ui.scripts_tab.populate_tree()
+            hotkeys = self.hotkey_controller.get_hotkeys()
+            print("Updating UI with hotkeys:", hotkeys)
+            self.ui.scripts_tab.update_hotkeys_display(hotkeys)
         if hasattr(self.ui, 'auto_functions_tab'):
             self.ui.auto_functions_tab.populate_tree()
 
