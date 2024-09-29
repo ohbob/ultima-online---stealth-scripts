@@ -1,9 +1,9 @@
 {
-  "hotkeys_enabled": false,
+  "hotkeys_enabled": true,
   "loop_enabled": false,
   "auto_functions_enabled": false,
   "scripts_timeout": 1000,
-  "auto_functions_timeout": 1000,
+  "auto_functions_timeout": 0,
   "hotkeys": {
     "q": "PetClosest",
     "w": "FriendClosest",
@@ -21,6 +21,22 @@
     {
       "name": "a llama",
       "id": 62978
+    },
+    {
+      "name": "a unicorn",
+      "id": 65502
+    },
+    {
+      "name": "a horse",
+      "id": 63674
+    },
+    {
+      "name": "a unicorn",
+      "id": 65501
+    },
+    {
+      "name": "qq",
+      "id": 69
     }
   ],
   "pets": [
@@ -31,6 +47,26 @@
     {
       "name": "a horse",
       "id": 63674
+    },
+    {
+      "name": "a llama",
+      "id": 65505
+    },
+    {
+      "name": "a unicorn",
+      "id": 65506
+    },
+    {
+      "name": "a llama",
+      "id": 62978
+    },
+    {
+      "name": "a cu sidhe",
+      "id": 46483
+    },
+    {
+      "name": "a horse",
+      "id": 63675
     }
   ],
   "auto_functions": {
@@ -40,14 +76,14 @@
         "path": "user/auto/Message.py",
         "hotkey": ""
       },
-      "one": {
-        "enabled": true,
-        "path": "user/auto/one.py",
+      "three": {
+        "enabled": false,
+        "path": "user/auto/three.py",
         "hotkey": ""
       },
-      "three": {
-        "enabled": true,
-        "path": "user/auto/three.py",
+      "one": {
+        "enabled": false,
+        "path": "user/auto/one.py",
         "hotkey": ""
       },
       "AutoCastCure": {
@@ -63,6 +99,11 @@
       "two": {
         "enabled": false,
         "path": "user/auto/two.py",
+        "hotkey": ""
+      },
+      "AutoHide": {
+        "enabled": false,
+        "path": "user/auto/AutoHide.py",
         "hotkey": ""
       }
     }

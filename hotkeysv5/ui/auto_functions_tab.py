@@ -26,8 +26,8 @@ class AutoFunctionsTab(ttk.Frame):
         button_frame = ttk.Frame(self)
         button_frame.pack(fill=tk.X, padx=self.BUTTON_PADX, pady=self.BUTTON_PADY)
 
-        self.set_hotkey_button = self.create_button(button_frame, "Set Hotkey", self.set_hotkey)
-        self.clear_hotkey_button = self.create_button(button_frame, "Clear Hotkey", self.clear_hotkey)
+        # self.set_hotkey_button = self.create_button(button_frame, "Set Hotkey", self.set_hotkey)
+        # self.clear_hotkey_button = self.create_button(button_frame, "Clear Hotkey", self.clear_hotkey)
         self.run_once_button = self.create_button(button_frame, "Run Once", self.run_once)
 
         # Replace text with arrow symbols for move up and down buttons

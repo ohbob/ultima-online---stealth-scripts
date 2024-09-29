@@ -132,12 +132,8 @@ class MainController:
         return new_state
 
     def toggle_all_hotkeys(self):
-        new_state = not self.state.hotkeys_enabled
+        new_state = self.hotkey_controller.toggle_all_hotkeys()
         self.state.set_hotkeys_enabled(new_state)
-        if new_state:
-            self.hotkey_controller.start()
-        else:
-            self.hotkey_controller.stop()
         
         print(f"Hotkeys {'enabled' if new_state else 'disabled'}")
         
@@ -558,7 +554,7 @@ class MainController:
             if self.state.auto_functions_enabled:
                 self.run_enabled_auto_functions()
 
-            time.sleep(1)  # Adjust this value as needed
+            # time.sleep(1)  # Adjust this value as needed
         
         print("Exiting main loop.")
 
@@ -588,10 +584,10 @@ class MainController:
         self.save_config()
 
     def start(self):
-        if self.state.hotkeys_enabled:
-            self.hotkey_controller.start()
+        self.hotkey_controller.start()  # Always start the listener
         # ... existing code ...
 
     def stop(self):
-        self.hotkey_controller.stop()
+        if self.hotkey_controller.listener:
+            self.hotkey_controller.listener.stop()
         # ... existing code ...

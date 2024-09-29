@@ -39,11 +39,12 @@ class HotkeyController:
 
     def on_release(self, key):
         try:
-            if key.char is not None:
+            if isinstance(key, keyboard.KeyCode) and key.char:
                 self.current_keys.discard(key.char.lower())
+            elif isinstance(key, keyboard.Key):
+                self.current_keys.discard(key.name.lower())
         except AttributeError:
-            # Handle special keys (e.g., function keys, arrow keys) that do not have a char attribute
-            self.current_keys.discard(str(key).lower())
+            pass
 
     def start(self):
         if not self.listener:
@@ -53,8 +54,9 @@ class HotkeyController:
         self.logger.info("Hotkey listener started")
 
     def stop(self):
-        self.is_running = False
-        self.logger.info("Hotkey listener stopped (non-whitelisted hotkeys disabled)")
+        pass
+        # self.is_running = False
+        # self.logger.info("Hotkey listener stopped (non-whitelisted hotkeys disabled)")
 
     def setup_hotkey(self, hotkey, func_name):
         parsed_hotkey = self.parse_hotkey(hotkey)
@@ -78,7 +80,21 @@ class HotkeyController:
             self.setup_hotkey(hotkey, func_name)
         self.logger.info(f"Hotkeys set: {self.get_hotkeys()}")
 
+    def clear_hotkey(self, hotkey):
+        parsed_hotkey = self.parse_hotkey(hotkey)
+        if parsed_hotkey in self.hotkeys:
+            del self.hotkeys[parsed_hotkey]
+        elif parsed_hotkey in self.whitelisted_hotkeys:
+            del self.whitelisted_hotkeys[parsed_hotkey]
+        self.logger.info(f"Hotkey cleared: {hotkey}")
+
     def clear_all_hotkeys(self):
         self.hotkeys.clear()
         self.whitelisted_hotkeys.clear()
         self.logger.info("All hotkeys cleared")
+
+    def toggle_all_hotkeys(self):
+        self.is_running = not self.is_running
+        state = "enabled" if self.is_running else "disabled"
+        self.logger.info(f"All non-whitelisted hotkeys {state}")
+        return self.is_running

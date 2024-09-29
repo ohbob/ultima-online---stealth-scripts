@@ -24,10 +24,10 @@ class MainUI:
         self.scripts_tab = ScriptsTab(self.notebook, self.controller)
         self.auto_functions_tab = AutoFunctionsTab(self.notebook, self.controller)
 
-        self.notebook.add(self.friends_tab, text='Friends')
-        self.notebook.add(self.pets_tab, text='Pets')
         self.notebook.add(self.scripts_tab, text='Scripts')
         self.notebook.add(self.auto_functions_tab, text='Auto Functions')
+        self.notebook.add(self.friends_tab, text='Friends')
+        self.notebook.add(self.pets_tab, text='Pets')
 
     def populate_tree_views(self):
         self.scripts_tab.populate_tree()
