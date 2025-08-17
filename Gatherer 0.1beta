@@ -55,7 +55,7 @@ FISHING_BOOK_NAME = "Fishing"
 HOME_BOOK_NAME = "Home"
 HOME_NUMBER = 1
 DISCORD_WEBHOOK = ""
-DISCORD_MESSAGE_INTERVAL = 30  # Send Discord message every X minutes (0 = every run)
+DISCORD_MESSAGE_INTERVAL = 60  # Send Discord message every X minutes (0 = every run)
 DEBUG_MODE = False  # Enable performance timing and debug output
 
 
