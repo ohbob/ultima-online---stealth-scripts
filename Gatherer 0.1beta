@@ -267,6 +267,18 @@ class TSPOptimizer:
         with open("tsp_cache.json", "w") as f:
             json.dump(self.tsp_cache, f)
     
+    def get_cache_stats(self):
+        """Get cache hit/miss statistics"""
+        return {
+            'cache_hits': getattr(self, 'cache_hits', 0),
+            'cache_misses': getattr(self, 'cache_misses', 0)
+        }
+    
+    def reset_cache_stats(self):
+        """Reset cache statistics"""
+        self.cache_hits = 0
+        self.cache_misses = 0
+    
     @GameUtils.timer
     def adapted_tsp_algorithm(self, dataset, tsp_algorithm):
         # Create a mapping from (x, y) to the full data tuple
@@ -327,10 +339,14 @@ class TSPOptimizer:
         key = f"{x}_{y}"
         
         if key in self.tsp_cache:
-            GameUtils.debug(f"📋 TSP Cache HIT -> Using cached route for {key}")
+            if DEBUG_MODE:
+                GameUtils.debug(f"📋 TSP Cache HIT -> Using cached route for {key}")
+            self.cache_hits = getattr(self, 'cache_hits', 0) + 1
             return self.tsp_cache[key]
         
-        GameUtils.debug(f"🔄 TSP Cache MISS -> Computing new route for {key}")
+        if DEBUG_MODE:
+            GameUtils.debug(f"🔄 TSP Cache MISS -> Computing new route for {key}")
+        self.cache_misses = getattr(self, 'cache_misses', 0) + 1
         result = self.adapted_tsp_algorithm(dataset, tsp_algorithm)
         self.tsp_cache[key] = result
         self.save_cache()
@@ -382,7 +398,7 @@ class TravelManager:
             book_display = f"{book_name} {book_index}/{rune_number}"
         else:
             book_display = f"Book_{book_index}/{rune_number}"
-        GameUtils.debug(f"🚀 Traveling to {book_display}")
+        GameUtils.debug(f"Runebook -> {book_display}")
 
         for retry in range(1, max_retries + 1):
             check_mana()
@@ -765,7 +781,7 @@ class ResourceTracker:
         for resource_name, info in self.current_config["items"].items():
             if info["color"] == item_color:
                 info["amount"] += item_quantity
-                GameUtils.debug(f"📈 Updated {resource_name}: +{item_quantity}")
+                GameUtils.debug(f"{resource_name}: +{item_quantity}")
                 break
     
     def calculate_counts(self):
@@ -905,6 +921,9 @@ class ResourceBot:
             for book_index, resource_book in enumerate(resource_books, 1):
                 rune_number = 1
                 while rune_number <= 16:  # runebook has 16 runes
+                    # Increment travel counter
+                    self.stats['total_travels'] += 1
+                    
                     self.travel_manager.runebook(resource_book, TRAVEL_METHOD, rune_number, f"{resource_type.title()}", book_index)
 
                     dataset, dataset_steps, dataset_time = self.tsp_optimizer.cached_adapted_tsp_algorithm(
@@ -912,9 +931,15 @@ class ResourceBot:
                         self.tsp_optimizer.two_opt_tsp
                     )
 
+                    # Increment gathering attempts counter
+                    self.stats['total_gathering_attempts'] += 1
+                    
                     gathering_successful = self.resource_gatherer.gather(resource_type, dataset, resource_book, rune_number, MIN_WAYPOINT_DISTANCE)
                     
                     if not gathering_successful:
+                        # Increment runs completed counter
+                        self.stats['runs_completed'] += 1
+                        
                         # Use the first home book (index 1)
                         home_book_index = 1
                         self.travel_manager.runebook(self.home_books[0], TRAVEL_METHOD, HOME_NUMBER, f"{HOME_BOOK_NAME}", home_book_index)
