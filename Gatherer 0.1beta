@@ -494,13 +494,13 @@ class InventoryManager:
                 Wait(500)
                 CheckLag()
     
-    def upload(self, resource_tracker):
+    def upload(self, resource_tracker, stats=None):
         """Upload tools and craft if needed"""
         self.get_items(TINKER_TOOL, 1, 1, STORAGE, "Tinkertool")
-        self.tinkering(TINKER_TOOL, 2, self.tinkermenu_tinkertools, "Tinkertool")
-        self.tinkering(SHOVEL, 3, self.tinkermenu_shovel, "Shovel")
+        self.tinkering(TINKER_TOOL, 2, self.tinkermenu_tinkertools, "Tinkertool", stats)
+        self.tinkering(SHOVEL, 3, self.tinkermenu_shovel, "Shovel", stats)
     
-    def tinkering(self, item_type: int, target_amount: int, crafting_button: int, item_name: str = ""):
+    def tinkering(self, item_type: int, target_amount: int, crafting_button: int, item_name: str = "", stats=None):
         """Craft items using tinkering"""
         def craft_item():
             UseType2(TINKER_TOOL)
@@ -508,10 +508,25 @@ class InventoryManager:
             GameUtils.text_in_gump("TINKERING MENU", crafting_button, 10)
             GameUtils.text_in_gump("TINKERING MENU", 0, 10)
 
+        initial_count = Count(item_type)
         while Count(item_type) < target_amount:
             GameUtils.debug(f"Crafting -> {item_name} {Count(item_type)} / {target_amount}")
             self.get_items(IRON, 10, 100, STORAGE, "Iron")
             craft_item()
+            
+            # Track materials used (10 iron per tool)
+            if stats and Count(item_type) > initial_count:
+                stats['materials_used']['iron_ingots'] += 10
+                if item_name.lower() == "shovel":
+                    stats['tools_crafted']['shovels'] += 1
+                elif item_name.lower() == "hatchet":
+                    stats['tools_crafted']['hatchets'] += 1
+                elif item_name.lower() == "fishing pole":
+                    stats['tools_crafted']['fishing_poles'] += 1
+                    stats['materials_used']['boards'] += 1  # Fishing poles need boards
+                elif item_name.lower() == "tinkertool":
+                    stats['tools_crafted']['tinkering_tools'] += 1
+                initial_count = Count(item_type)
 
         GameUtils.debug(f"Crafting -> {item_name} {Count(item_type)} / {target_amount}")
 
@@ -609,7 +624,7 @@ class ResourceGatherer:
                                        config['messages']['end'] + "|is attacking you")
     
     @GameUtils.timer
-    def gather(self, resource_type, tile_list, resource_book, rune_number, min_waypoint_distance=0):
+    def gather(self, resource_type, tile_list, resource_book, rune_number, min_waypoint_distance=0, stats=None):
         """Universal resource gathering operation"""
         if resource_type not in self.resource_configs:
             GameUtils.debug(f"❌ Unknown resource type: {resource_type}")
@@ -635,6 +650,10 @@ class ResourceGatherer:
 
                 while gathering and attempt_count < max_attempts:
                     attempt_count += 1
+                    
+                    # Increment gathering attempts counter for each tool swing
+                    if stats:
+                        stats['total_gathering_attempts'] += 1
 
                     if FindType(tool_type, Backpack()) == 0 or Weight() > MaxWeight() - weight_limit:
                         return False
@@ -848,7 +867,17 @@ class ResourceBot:
             'total_travels': 0,
             'total_gathering_attempts': 0,
             'cache_hits': 0,
-            'cache_misses': 0
+            'cache_misses': 0,
+            'tools_crafted': {
+                'shovels': 0,
+                'hatchets': 0,
+                'fishing_poles': 0,
+                'tinkering_tools': 0
+            },
+            'materials_used': {
+                'iron_ingots': 0,
+                'boards': 0
+            }
         }
         self.utils = GameUtils()
         self.tile_scanner = TileScanner()
@@ -931,10 +960,7 @@ class ResourceBot:
                         self.tsp_optimizer.two_opt_tsp
                     )
 
-                    # Increment gathering attempts counter
-                    self.stats['total_gathering_attempts'] += 1
-                    
-                    gathering_successful = self.resource_gatherer.gather(resource_type, dataset, resource_book, rune_number, MIN_WAYPOINT_DISTANCE)
+                    gathering_successful = self.resource_gatherer.gather(resource_type, dataset, resource_book, rune_number, MIN_WAYPOINT_DISTANCE, self.stats)
                     
                     if not gathering_successful:
                         # Increment runs completed counter
@@ -944,7 +970,7 @@ class ResourceBot:
                         home_book_index = 1
                         self.travel_manager.runebook(self.home_books[0], TRAVEL_METHOD, HOME_NUMBER, f"{HOME_BOOK_NAME}", home_book_index)
                         self.inventory_manager.unload(self.resource_tracker)
-                        self.inventory_manager.upload(self.resource_tracker)
+                        self.inventory_manager.upload(self.resource_tracker, self.stats)
                         self.inventory_manager.unload(self.resource_tracker)
                         
                         stats = self.resource_tracker.calculate_counts()
@@ -1008,6 +1034,16 @@ def main():
             if bot.stats['cache_hits'] + bot.stats['cache_misses'] > 0:
                 cache_efficiency = (bot.stats['cache_hits'] / (bot.stats['cache_hits'] + bot.stats['cache_misses'])) * 100
                 print(f"📈 Cache Efficiency: {cache_efficiency:.1f}%")
+            
+            # Crafting statistics
+            print(f"\n🔨 CRAFTING STATISTICS:")
+            print(f"   Shovels: {bot.stats['tools_crafted']['shovels']}")
+            print(f"   Hatchets: {bot.stats['tools_crafted']['hatchets']}")
+            print(f"   Fishing Poles: {bot.stats['tools_crafted']['fishing_poles']}")
+            print(f"   Tinkering Tools: {bot.stats['tools_crafted']['tinkering_tools']}")
+            print(f"\n📦 MATERIALS USED:")
+            print(f"   Iron Ingots: {bot.stats['materials_used']['iron_ingots']}")
+            print(f"   Boards: {bot.stats['materials_used']['boards']}")
         print("="*50)
         print("👋 Script execution ended")
 
