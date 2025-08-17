@@ -792,7 +792,7 @@ class ResourceTracker:
         if resource_type in self.resource_configs:
             self.resource_type = resource_type
             self.current_config = self.resource_configs[resource_type]
-            GameUtils.debug(f"📊 Tracker: {resource_type}")
+            GameUtils.debug(f"📊 Resource Tracker: {resource_type} ")
         else:
             GameUtils.debug(f"❌ Unknown resource type: {resource_type}")
     
