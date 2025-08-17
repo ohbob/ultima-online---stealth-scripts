@@ -32,6 +32,10 @@ from functools import wraps
 from py_stealth import *
 
 # ===== CONFIGURATION =====
+# ===== SET YOUR RESOURCE TYPE HERE =====
+# Choose one: "mining", "lumberjacking", or "fishing"
+RESOURCE_TYPE = "mining"  # Change this to switch activities
+
 # Resource-specific scan radii (trees are more spread out than ore)
 MINING_SCAN_RADIUS = 10
 LUMBERJACKING_SCAN_RADIUS = 200
@@ -899,8 +903,8 @@ class ResourceBot:
         self.ore_books = []
         self.home_books = []
     
-    def perform_diagnostic_checks(self):
-        """Perform startup diagnostic checks"""
+    def perform_diagnostic_checks(self, resource_type="mining"):
+        """Perform startup diagnostic checks based on resource type"""
         try:
             if not Connected():
                 Connect()
@@ -913,10 +917,24 @@ class ResourceBot:
             UseObject(Backpack())
             Wait(1000)
 
-            self.utils.check(len(self.travel_manager.find_runebooks_by_name(ORE_BOOK_NAME)) > 0, "ORE BOOK NAME FOUND")
+            # Check for appropriate resource book based on resource type
+            if resource_type == "mining":
+                resource_book_name = ORE_BOOK_NAME
+                tool_to_check = SHOVEL
+            elif resource_type == "lumberjacking":
+                resource_book_name = LUMBER_BOOK_NAME
+                tool_to_check = HATCHET
+            elif resource_type == "fishing":
+                resource_book_name = FISHING_BOOK_NAME
+                tool_to_check = FISHING_POLE
+            else:
+                GameUtils.log_error(ValueError(f"Unknown resource type: {resource_type}"), "ResourceBot.perform_diagnostic_checks")
+                return
+
+            self.utils.check(len(self.travel_manager.find_runebooks_by_name(resource_book_name)) > 0, f"{resource_type.upper()} BOOK NAME FOUND")
             self.utils.check(len(self.travel_manager.find_runebooks_by_name(HOME_BOOK_NAME)) > 0, "HOME BOOK NAME FOUND")
             self.utils.check(Count(TINKER_TOOL) > 0, "TOOLS TINKER FOUND")
-            self.utils.check(Count(SHOVEL) > 0, "TOOLS SHOVEL FOUND")
+            self.utils.check(Count(tool_to_check) > 0, f"TOOLS {resource_type.upper()} FOUND")
 
             print("==============")
             self.utils.debug("STARTING")
@@ -928,7 +946,7 @@ class ResourceBot:
     
     def run(self, resource_type="mining"):
         """Main resource gathering loop - supports mining, lumberjacking, fishing"""
-        self.perform_diagnostic_checks()
+        self.perform_diagnostic_checks(resource_type)
         
         # Set resource type for tracking
         self.resource_tracker.set_resource_type(resource_type)
@@ -1011,7 +1029,7 @@ def main():
         
         # Initialize and run the bot
         bot = ResourceBot()
-        bot.run()
+        bot.run(RESOURCE_TYPE)
         
     except KeyboardInterrupt:
         GameUtils.log_warning("Script interrupted by user")
@@ -1048,15 +1066,19 @@ def main():
                 cache_efficiency = (bot.stats['cache_hits'] / (bot.stats['cache_hits'] + bot.stats['cache_misses'])) * 100
                 print(f"📈 Cache Efficiency: {cache_efficiency:.1f}%")
             
-            # Crafting statistics
-            print(f"\n🔨 CRAFTING STATISTICS:")
-            print(f"   Shovels: {bot.stats['tools_crafted']['shovels']}")
-            print(f"   Hatchets: {bot.stats['tools_crafted']['hatchets']}")
-            print(f"   Fishing Poles: {bot.stats['tools_crafted']['fishing_poles']}")
-            print(f"   Tinkering Tools: {bot.stats['tools_crafted']['tinkering_tools']}")
-            print(f"\n📦 MATERIALS USED:")
-            print(f"   Iron Ingots: {bot.stats['materials_used']['iron_ingots']}")
-            print(f"   Boards: {bot.stats['materials_used']['boards']}")
+            # Crafting statistics - only show items that were actually crafted
+            crafted_items = {k: v for k, v in bot.stats['tools_crafted'].items() if v > 0}
+            if crafted_items:
+                print(f"\n🔨 CRAFTING STATISTICS:")
+                for item, count in crafted_items.items():
+                    print(f"   {item.title()}: {count}")
+            
+            # Materials used - only show materials that were actually used
+            used_materials = {k: v for k, v in bot.stats['materials_used'].items() if v > 0}
+            if used_materials:
+                print(f"\n📦 MATERIALS USED:")
+                for material, count in used_materials.items():
+                    print(f"   {material.replace('_', ' ').title()}: {count}")
         print("="*50)
         print("👋 Script execution ended")
 
