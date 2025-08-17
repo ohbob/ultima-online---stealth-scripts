@@ -37,7 +37,11 @@ MINING_SCAN_RADIUS = 10
 LUMBERJACKING_SCAN_RADIUS = 200
 FISHING_SCAN_RADIUS = 200
 
-MIN_WAYPOINT_DISTANCE = 3
+# Resource-specific waypoint distances (mining needs spacing, lumberjacking less so)
+MINING_WAYPOINT_DISTANCE = 3      # Avoid revisiting same mining spots
+LUMBERJACKING_WAYPOINT_DISTANCE = 0  # Trees are naturally spaced, no need for restriction
+FISHING_WAYPOINT_DISTANCE = 0     # Some spacing for fishing spots
+
 TRAVEL_METHOD = "magery"  # "magery", "chiva", "charges", "gate"
 
 # Resource book names
@@ -58,8 +62,9 @@ SHOVEL = 0x0F39           # Mining shovel
 HATCHET = 0x0F43          # Lumberjacking hatchet
 FISHING_POLE = 0x0DC0     # Fishing pole
 BOARD = 0x1BD7            # Boards for crafting
-STORAGE = 0x450F0225      # Storage container ID
 IRON = 0x1BF2             # Iron ingots for crafting
+STORAGE = 0x450F0225      # Storage container ID
+
 
 # Items to unload to storage (ores and gems)
 UNLOAD_LIST = [
@@ -928,18 +933,21 @@ class ResourceBot:
         # Set resource type for tracking
         self.resource_tracker.set_resource_type(resource_type)
         
-        # Get appropriate books and scan radius based on resource type
+        # Get appropriate books, scan radius, and waypoint distance based on resource type
         if resource_type == "mining":
             resource_books = self.travel_manager.find_runebooks_by_name(ORE_BOOK_NAME)
             scan_radius = MINING_SCAN_RADIUS
+            waypoint_distance = MINING_WAYPOINT_DISTANCE
             tiles = self.tile_scanner.caves
         elif resource_type == "lumberjacking":
             resource_books = self.travel_manager.find_runebooks_by_name(LUMBER_BOOK_NAME)
             scan_radius = LUMBERJACKING_SCAN_RADIUS
+            waypoint_distance = LUMBERJACKING_WAYPOINT_DISTANCE
             tiles = TREES
         elif resource_type == "fishing":
             resource_books = self.travel_manager.find_runebooks_by_name(FISHING_BOOK_NAME)
             scan_radius = FISHING_SCAN_RADIUS
+            waypoint_distance = FISHING_WAYPOINT_DISTANCE
             tiles = WATER_TILES
         else:
             GameUtils.log_error(ValueError(f"Unknown resource type: {resource_type}"), "ResourceBot.run")
@@ -963,7 +971,7 @@ class ResourceBot:
                         self.tsp_optimizer.two_opt_tsp
                     )
 
-                    gathering_successful = self.resource_gatherer.gather(resource_type, dataset, resource_book, rune_number, MIN_WAYPOINT_DISTANCE, self.stats)
+                    gathering_successful = self.resource_gatherer.gather(resource_type, dataset, resource_book, rune_number, waypoint_distance, self.stats)
                     
                     if not gathering_successful:
                         # Increment runs completed counter
@@ -996,7 +1004,9 @@ def main():
         GameUtils.check(1 <= MINING_SCAN_RADIUS <= 200, f"MINING_SCAN_RADIUS {MINING_SCAN_RADIUS} is between 1-200")
         GameUtils.check(1 <= LUMBERJACKING_SCAN_RADIUS <= 200, f"LUMBERJACKING_SCAN_RADIUS {LUMBERJACKING_SCAN_RADIUS} is between 1-200")
         GameUtils.check(1 <= FISHING_SCAN_RADIUS <= 200, f"FISHING_SCAN_RADIUS {FISHING_SCAN_RADIUS} is between 1-200")
-        GameUtils.check(MIN_WAYPOINT_DISTANCE >= 0, f"MIN_WAYPOINT_DISTANCE {MIN_WAYPOINT_DISTANCE} is >= 0")
+        GameUtils.check(MINING_WAYPOINT_DISTANCE >= 0, f"MINING_WAYPOINT_DISTANCE {MINING_WAYPOINT_DISTANCE} is >= 0")
+        GameUtils.check(LUMBERJACKING_WAYPOINT_DISTANCE >= 0, f"LUMBERJACKING_WAYPOINT_DISTANCE {LUMBERJACKING_WAYPOINT_DISTANCE} is >= 0")
+        GameUtils.check(FISHING_WAYPOINT_DISTANCE >= 0, f"FISHING_WAYPOINT_DISTANCE {FISHING_WAYPOINT_DISTANCE} is >= 0")
         GameUtils.check(1 <= HOME_NUMBER <= 16, f"HOME_NUMBER {HOME_NUMBER} is between 1-16")
         
         # Initialize and run the bot
