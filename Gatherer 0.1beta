@@ -55,6 +55,9 @@ DEBUG_MODE = False  # Enable performance timing and debug output
 # Tools and crafting items
 TINKER_TOOL = 0x1EB8      # Tinkering tool for crafting
 SHOVEL = 0x0F39           # Mining shovel
+HATCHET = 0x0F43          # Lumberjacking hatchet
+FISHING_POLE = 0x0DC0     # Fishing pole
+BOARD = 0x1BD7            # Boards for crafting
 STORAGE = 0x450F0225      # Storage container ID
 IRON = 0x1BF2             # Iron ingots for crafting
 
@@ -567,12 +570,12 @@ class ResourceGatherer:
                 'weight_limit': 35
             },
             'lumberjacking': {
-                'tool_type': 0x0F43,  # Hatchet
+                'tool_type': HATCHET,
                 'tool_name': 'Hatchet',
                 'max_attempts': 20,
                 'tiles': [TREES],  # Tree tile types
                 'crafting': {
-                    'tool_id': 0x0F43,
+                    'tool_id': HATCHET,
                     'crafting_button': 73,  # Hatchet button in tinkering menu
                     'materials': {IRON: 8},  # 8 iron needed per hatchet
                     'target_amount': 3
@@ -592,14 +595,14 @@ class ResourceGatherer:
                 'weight_limit': 35
             },
             'fishing': {
-                'tool_type': 0x0DC0,  # Fishing pole
+                'tool_type': FISHING_POLE,
                 'tool_name': 'Fishing Pole',
                 'max_attempts': 15,
                 'tiles': [WATER_TILES],  # Water tile types
                 'crafting': {
-                    'tool_id': 0x0DC0,
+                    'tool_id': FISHING_POLE,
                     'crafting_button': 74,  # Fishing pole button in tinkering menu
-                    'materials': {IRON: 5, 0x1BD7: 1},  # 5 iron + 1 board per pole
+                    'materials': {IRON: 5, BOARD: 1},  # 5 iron + 1 board per pole
                     'target_amount': 2
                 },
                 'messages': {
