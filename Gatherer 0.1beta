@@ -54,7 +54,7 @@ LUMBER_BOOK_NAME = "Lumber"
 FISHING_BOOK_NAME = "Fishing"
 HOME_BOOK_NAME = "Home"
 HOME_NUMBER = 1
-DISCORD_WEBHOOK = "https://discord.com/api/webhooks/1127867919670448128/mLdxVonbEAdE0zLji0WSuiXp7IcHFgsQy9n0LNp4vf4VL4ixHCHvYQhiMd6kU0_b-OW9"
+DISCORD_WEBHOOK = ""
 DISCORD_MESSAGE_INTERVAL = 30  # Send Discord message every X minutes (0 = every run)
 DEBUG_MODE = False  # Enable performance timing and debug output
 
