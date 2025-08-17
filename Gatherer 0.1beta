@@ -494,8 +494,8 @@ class InventoryManager:
                 Wait(500)
                 CheckLag()
     
-    def upload(self):
-        """Upload tools and unload"""
+    def upload(self, resource_tracker):
+        """Upload tools and craft if needed"""
         self.get_items(TINKER_TOOL, 1, 1, STORAGE, "Tinkertool")
         self.tinkering(TINKER_TOOL, 2, self.tinkermenu_tinkertools, "Tinkertool")
         self.tinkering(SHOVEL, 3, self.tinkermenu_shovel, "Shovel")
@@ -944,7 +944,9 @@ class ResourceBot:
                         home_book_index = 1
                         self.travel_manager.runebook(self.home_books[0], TRAVEL_METHOD, HOME_NUMBER, f"{HOME_BOOK_NAME}", home_book_index)
                         self.inventory_manager.unload(self.resource_tracker)
-                        self.inventory_manager.upload()
+                        self.inventory_manager.upload(self.resource_tracker)
+                        self.inventory_manager.unload(self.resource_tracker)
+                        
                         stats = self.resource_tracker.calculate_counts()
                         
                         if DISCORD_WEBHOOK.startswith("https://discord.com"):
@@ -992,6 +994,11 @@ def main():
         print("📊 FINAL STATISTICS")
         print("="*50)
         if 'bot' in locals():
+            # Get cache statistics from TSP optimizer
+            cache_stats = bot.tsp_optimizer.get_cache_stats()
+            bot.stats['cache_hits'] = cache_stats['cache_hits']
+            bot.stats['cache_misses'] = cache_stats['cache_misses']
+            
             print(f"⏱️ Total Runtime: {elapsed_readable}")
             print(f"🔄 Runs Completed: {bot.stats['runs_completed']}")
             print(f"🚀 Total Travels: {bot.stats['total_travels']}")
