@@ -54,7 +54,8 @@ LUMBER_BOOK_NAME = "Lumber"
 FISHING_BOOK_NAME = "Fishing"
 HOME_BOOK_NAME = "Home"
 HOME_NUMBER = 1
-DISCORD_WEBHOOK = ""
+DISCORD_WEBHOOK = "https://discord.com/api/webhooks/1127867919670448128/mLdxVonbEAdE0zLji0WSuiXp7IcHFgsQy9n0LNp4vf4VL4ixHCHvYQhiMd6kU0_b-OW9"
+DISCORD_MESSAGE_INTERVAL = 30  # Send Discord message every X minutes (0 = every run)
 DEBUG_MODE = False  # Enable performance timing and debug output
 
 
@@ -497,7 +498,7 @@ class InventoryManager:
             Wait(500)
             while FindTypesArrayEx(UNLOAD_LIST, [0xFFFF], [Backpack()], False):
                 item = FindItem()
-                item_type = GetType(item)
+                # item_type = GetType(item)
 
                 # Update tracker with the item (it will handle different resource types)
                 resource_tracker.update_counts(item)
@@ -863,18 +864,106 @@ class ResourceTracker:
 
 
 class Discord:
-    """Handles Discord webhook notifications"""
+    """Handles Discord webhook notifications with embeds"""
     
-    def __init__(self, webhook: str, botname: str = "April O'Neil",
+    def __init__(self, webhook: str, botname: str = "Resource Bot",
                  avatar: str = "https://i.pinimg.com/originals/87/67/11/876711e56a0ef942cbb2f15844235f2e.jpg"):
         self.webhook, self.botname, self.avatar = webhook, botname, avatar
 
+    def get_resource_name(self, key: str) -> str:
+        """Convert resource key to display name"""
+        name_mapping = {
+            # Mining resources
+            "Iron": "⛏️ Iron",
+            "Shadow": "⛏️ Shadow",
+            "Copper": "⛏️ Copper", 
+            "Bronze": "⛏️ Bronze",
+            "Gold": "⛏️ Gold",
+            "Agapite": "⛏️ Agapite",
+            "Verite": "⛏️ Verite",
+            "Valorite": "⛏️ Valorite",
+            # Gems
+            "Amethyst": "💎 Amethyst",
+            "Citrine": "💎 Citrine",
+            "Diamond": "💎 Diamond",
+            "Emerald": "💎 Emerald",
+            "Ruby": "💎 Ruby",
+            "Sapphire": "💎 Sapphire",
+            "Star Sapphire": "💎 Star Sapphire",
+            "Tourmaline": "💎 Tourmaline",
+            # Lumberjacking
+            "Regular Wood": "🪵 Regular Wood",
+            "Oak Wood": "🪵 Oak Wood",
+            "Ash Wood": "🪵 Ash Wood",
+            "Yew Wood": "🪵 Yew Wood",
+            "Heartwood": "🪵 Heartwood",
+            "Bloodwood": "🪵 Bloodwood",
+            "Frostwood": "🪵 Frostwood",
+            # Fishing
+            "Fish": "🐟 Fish",
+            "Pearl": "🐚 Pearl",
+            "Crab": "🦀 Crab",
+            "Lobster": "🦞 Lobster",
+            "Shrimp": "🦐 Shrimp",
+            # Stats
+            "runs_completed": "🔄 Runs",
+            "total_travels": "🚀 Travels",
+            "total_gathering_attempts": "⛏️ Attempts",
+            "cache_hits": "📋 Cache Hits",
+            "cache_misses": "🔄 Cache Misses",
+            "tools_crafted": "🔨 Tools Crafted",
+            "materials_used": "📦 Materials Used"
+        }
+        return name_mapping.get(key, key)
+
+    def send_report(self, title: str, *data):
+        """Send formatted report with embeds"""
+        try:
+            from urllib.request import Request, urlopen
+            
+            # Create embed structure
+            embed = {
+                "title": title,
+                "color": 0x00ff00,  # Green color
+                "fields": [],
+                "timestamp": datetime.datetime.now().isoformat()
+            }
+            
+            # Add fields for each data dictionary
+            for arg in data:
+                for key in arg.keys():
+                    is_last = (key == list(arg.keys())[-1])
+                    field = {
+                        "name": self.get_resource_name(key),
+                        "value": str(arg[key]),
+                        "inline": not is_last  # Last field spans full width
+                    }
+                    embed["fields"].append(field)
+            
+            # Create webhook payload
+            payload = {
+                "username": self.botname,
+                "avatar_url": self.avatar,
+                "embeds": [embed]
+            }
+            
+            # Send webhook
+            data = json.dumps(payload).encode('utf-8')
+            req = Request(self.webhook, data, headers={
+                'Content-Type': 'application/json',
+                'User-Agent': 'Mozilla/5.0 (X11; U; Linux i686) Gecko/20071127 Firefox/2.0.0.11'
+            })
+            urlopen(req).read()
+            
+        except Exception as e:
+            AddToSystemJournal("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
+            AddToSystemJournal("Failed to send report data")
+            AddToSystemJournal(f"Error: {str(e)}")
+            AddToSystemJournal("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
+
     def send_message(self, message: str):
-        from urllib.request import Request, urlopen
-        data = json.dumps({"username": self.botname, "avatar_url": self.avatar, "content": message}).encode('utf-8')
-        req = Request(self.webhook, data, headers={'Content-Type': 'application/json',
-                                                   'User-Agent': 'Mozilla/5.0 (X11; U; Linux i686) Gecko/20071127 Firefox/2.0.0.11'})
-        urlopen(req).read()
+        """Legacy method for backward compatibility"""
+        self.send_report("Resource Report", {"message": message})
 
 
 class ResourceBot:
@@ -901,6 +990,7 @@ class ResourceBot:
     
     def __init__(self):
         self.start_time = time.time()
+        self.last_discord_message = time.time()  # Track last Discord message time
         self.stats = {
             'runs_completed': 0,
             'total_travels': 0,
@@ -1031,8 +1121,49 @@ class ResourceBot:
                         
                         stats = self.resource_tracker.calculate_counts()
                         
-                        if DISCORD_WEBHOOK.startswith("https://discord.com"):
-                            self.discord.send_message(stats)
+                        # Check if we should send Discord message
+                        current_time = time.time()
+                        should_send_discord = (
+                            DISCORD_WEBHOOK.startswith("https://discord.com") and
+                            (DISCORD_MESSAGE_INTERVAL == 0 or 
+                             current_time - self.last_discord_message >= DISCORD_MESSAGE_INTERVAL * 60)
+                        )
+                        
+                        if should_send_discord:
+                            # Get resource counts for Discord embed
+                            resource_counts = {}
+                            total_ores = 0
+                            total_gems = 0
+                            elapsed_time = current_time - self.resource_tracker.start_time
+                            
+                            # Define ore and gem lists for mining
+                            ore_types = ["Iron", "Shadow", "Copper", "Bronze", "Gold", "Agapite", "Verite", "Valorite"]
+                            gem_types = ["Amethyst", "Citrine", "Diamond", "Emerald", "Ruby", "Sapphire", "Star Sapphire", "Tourmaline"]
+                            
+                            for resource_name, info in self.resource_tracker.current_config["items"].items():
+                                if info["amount"] > 0:  # Only include items with counts > 0
+                                    resources_per_hour = info["amount"] / (elapsed_time / 3600)
+                                    resource_counts[resource_name] = f"{info['amount']} ({int(resources_per_hour)}/h)"
+                                    
+                                    # Categorize resources
+                                    if resource_name in ore_types:
+                                        total_ores += info["amount"]
+                                    elif resource_name in gem_types:
+                                        total_gems += info["amount"]
+                            
+                            # Add session statistics
+                            session_stats = {
+                                "Session Time": str(datetime.timedelta(seconds=int(elapsed_time))),
+                                "Total Ores": f"{total_ores} ({int(total_ores / (elapsed_time / 3600))}/h)",
+                                "Total Gems": f"{total_gems} ({int(total_gems / (elapsed_time / 3600))}/h)",
+                                "Runs Completed": self.stats['runs_completed'],
+                                "Total Travels": self.stats['total_travels'],
+                                "Gathering Attempts": self.stats['total_gathering_attempts']
+                            }
+                            
+                            # Send Discord report with resource counts and session stats
+                            self.discord.send_report(f"{RESOURCE_TYPE.title()} Session Complete", resource_counts, session_stats)
+                            self.last_discord_message = current_time
                         else:
                             print(stats)
                     else:
