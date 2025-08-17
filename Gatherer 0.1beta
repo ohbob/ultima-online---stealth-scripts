@@ -1162,7 +1162,7 @@ class ResourceBot:
                             }
                             
                             # Send Discord report with resource counts and session stats
-                            self.discord.send_report(f"{RESOURCE_TYPE.title()} Session Complete", resource_counts, session_stats)
+                            self.discord.send_report(f"{RESOURCE_TYPE.title()} Stats", resource_counts, session_stats)
                             self.last_discord_message = current_time
                         else:
                             print(stats)
