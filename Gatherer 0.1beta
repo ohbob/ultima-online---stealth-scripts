@@ -746,36 +746,44 @@ class ResourceTracker:
             "mining": {
                 "title": "Mining",
                 "items": {
-                    "Iron": {"color": 0x000, "amount": 0},
-                    "Shadow": {"color": 0x966, "amount": 0},
-                    "Copper": {"color": 0x96D, "amount": 0},
-                    "Bronze": {"color": 0x972, "amount": 0},
-                    "Gold": {"color": 0x8A5, "amount": 0},
-                    "Agapite": {"color": 0x979, "amount": 0},
-                    "Verite": {"color": 0x89F, "amount": 0},
-                    "Valorite": {"color": 0x8AB, "amount": 0},
+                    "Iron": {"type": [0x19B7, 0x19B8, 0x19B9], "color": 0x000, "amount": 0},
+                    "Shadow": {"type": [0x19B7, 0x19B8, 0x19B9], "color": 0x966, "amount": 0},
+                    "Copper": {"type": [0x19B7, 0x19B8, 0x19B9], "color": 0x96D, "amount": 0},
+                    "Bronze": {"type": [0x19B7, 0x19B8, 0x19B9], "color": 0x972, "amount": 0},
+                    "Gold": {"type": [0x19B7, 0x19B8, 0x19B9], "color": 0x8A5, "amount": 0},
+                    "Agapite": {"type": [0x19B7, 0x19B8, 0x19B9], "color": 0x979, "amount": 0},
+                    "Verite": {"type": [0x19B8, 0x19B9, 0x19BA], "color": 0x89F, "amount": 0},
+                    "Valorite": {"type": [0x19B9, 0x19BA, 0x19BB], "color": 0x8AB, "amount": 0},
+                    "Amethyst": {"type": 0x3195, "amount": 0},
+                    "Citrine": {"type": 0x3194, "amount": 0},
+                    "Diamond": {"type": 0x3198, "amount": 0},
+                    "Emerald": {"type": 0x3193, "amount": 0},
+                    "Ruby": {"type": 0x3197, "amount": 0},
+                    "Sapphire": {"type": 0x3192, "amount": 0},
+                    "Star Sapphire": {"type": 0x5732, "amount": 0},
+                    "Tourmaline": {"type": 0x0F28, "amount": 0},
                 }
             },
             "lumberjacking": {
                 "title": "Lumberjacking",
                 "items": {
-                    "Regular Wood": {"color": 0x000, "amount": 0},
-                    "Oak Wood": {"color": 0x7DA, "amount": 0},
-                    "Ash Wood": {"color": 0x7A1, "amount": 0},
-                    "Yew Wood": {"color": 0x7A8, "amount": 0},
-                    "Heartwood": {"color": 0x7A9, "amount": 0},
-                    "Bloodwood": {"color": 0x7AA, "amount": 0},
-                    "Frostwood": {"color": 0x7AB, "amount": 0},
+                    "Regular Wood": {"type": [0x1BD7, 0x1BD8, 0x1BD9], "color": 0x000, "amount": 0},
+                    "Oak Wood": {"type": [0x1BD7, 0x1BD8, 0x1BD9], "color": 0x7DA, "amount": 0},
+                    "Ash Wood": {"type": [0x1BD7, 0x1BD8, 0x1BD9], "color": 0x7A1, "amount": 0},
+                    "Yew Wood": {"type": [0x1BD7, 0x1BD8, 0x1BD9], "color": 0x7A8, "amount": 0},
+                    "Heartwood": {"type": [0x1BD7, 0x1BD8, 0x1BD9], "color": 0x7A9, "amount": 0},
+                    "Bloodwood": {"type": [0x1BD7, 0x1BD8, 0x1BD9], "color": 0x7AA, "amount": 0},
+                    "Frostwood": {"type": [0x1BD7, 0x1BD8, 0x1BD9], "color": 0x7AB, "amount": 0},
                 }
             },
             "fishing": {
                 "title": "Fishing",
                 "items": {
-                    "Fish": {"color": 0x000, "amount": 0},
-                    "Pearl": {"color": 0x0, "amount": 0},  # Pearls have various colors
-                    "Crab": {"color": 0x0, "amount": 0},
-                    "Lobster": {"color": 0x0, "amount": 0},
-                    "Shrimp": {"color": 0x0, "amount": 0},
+                    "Fish": {"type": [0x09CC, 0x09CD, 0x09CE], "color": 0x000, "amount": 0},
+                    "Pearl": {"type": 0x3196, "amount": 0},  # Pearls have various colors
+                    "Crab": {"type": 0x09B7, "amount": 0},
+                    "Lobster": {"type": 0x09B8, "amount": 0},
+                    "Shrimp": {"type": 0x09B9, "amount": 0},
                 }
             }
         }
@@ -808,12 +816,31 @@ class ResourceTracker:
         """Update resource counts with given item"""
         item_color = int(GetColor(item))
         item_quantity = GetQuantity(item)
+        item_type = GetType(item)
         
+        # Check each resource in config
         for resource_name, info in self.current_config["items"].items():
-            if info["color"] == item_color:
+            # Check if item type matches (handle both single type and list of types)
+            if "type" in info:
+                type_matches = False
+                if isinstance(info["type"], list):
+                    # Check if item type is in the list
+                    type_matches = item_type in info["type"]
+                else:
+                    # Check if item type matches exactly
+                    type_matches = info["type"] == item_type
+                
+                if type_matches:
+                    # Check if color matches, if color is 0xFFFF (any color fits), or if color is omitted
+                    if "color" not in info or info["color"] == 0xFFFF or info["color"] == item_color:
+                        info["amount"] += item_quantity
+                        GameUtils.debug(f"{resource_name}: +{item_quantity}")
+                        return
+            # If no type specified, check by color only
+            elif "color" in info and info["color"] == item_color:
                 info["amount"] += item_quantity
                 GameUtils.debug(f"{resource_name}: +{item_quantity}")
-                break
+                return
     
     def calculate_counts(self):
         """Generate resource count report"""
