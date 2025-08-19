@@ -32,6 +32,7 @@ from concurrent.futures import ThreadPoolExecutor
 from functools import wraps
 from py_stealth import *
 
+
 # ===== CONFIGURATION =====
 # ===== SET YOUR RESOURCE TYPE HERE =====
 # Choose one: "mining", "lumberjacking", or "fishing"
@@ -125,7 +126,7 @@ WATER_TILES = []
 
 
 
-class GameUtils:
+class Utils:
     """Universal game utility functions for UO automation"""
     
     @staticmethod
@@ -148,20 +149,32 @@ class GameUtils:
     def log_error(error, context=""):
         """Log errors with context for debugging"""
         error_msg = f"🚨 ERROR in {context}: {str(error)}"
-        GameUtils.debug(error_msg)
+        Utils.debug(error_msg)
         if DEBUG_MODE:
             import traceback
-            GameUtils.debug(f"📋 Stack trace: {traceback.format_exc()}")
+            Utils.debug(f"📋 Stack trace: {traceback.format_exc()}")
     
     @staticmethod
     def log_warning(message):
         """Log warnings for non-critical issues"""
-        GameUtils.debug(f"⚠️ WARNING: {message}")
+        Utils.debug(f"⚠️ WARNING: {message}")
     
     @staticmethod
     def log_success(message):
         """Log successful operations"""
-        GameUtils.debug(f"✅ SUCCESS: {message}")
+        Utils.debug(f"✅ SUCCESS: {message}")
+    
+    @staticmethod
+    def format_label(key: str) -> str:
+        """Cheap label formatter: turn snake_case or camelCase into Title Case."""
+        try:
+            # Replace underscores, split camelCase, and title-case
+            import re
+            spaced = re.sub(r"(_)+", " ", key)
+            spaced = re.sub(r"([a-z])([A-Z])", r"\1 \2", spaced)
+            return spaced.strip().title()
+        except Exception:
+            return key
     
     @staticmethod
     def getxy(obj=Self()):
@@ -210,7 +223,7 @@ class GameUtils:
         Decorator to measure and print the execution time of a function.
         
         Usage:
-            @GameUtils.timer
+            @Utils.timer
             def my_function():
                 # your code here
                 pass
@@ -224,7 +237,7 @@ class GameUtils:
             result = func(*args, **kwargs)
             end_time = time.perf_counter()
             execution_time = end_time - start_time
-            GameUtils.debug(f"⏱️ {func.__name__} executed in {execution_time:.4f} seconds")
+            Utils.debug(f"⏱️ {func.__name__} executed in {execution_time:.4f} seconds")
             return result
         return wrapper
     
@@ -239,7 +252,7 @@ class TileScanner:
         self.mountains = MOUNTAINS
         self.rocks = ROCKS
     
-    @GameUtils.timer
+    @Utils.timer
     def get_tiles(self, radius: int, tiles):
         """Parallel processing version using ThreadPoolExecutor"""
         world = WorldNum()
@@ -263,23 +276,67 @@ class TileScanner:
         return found_tiles
 
 
-class TSPOptimizer:
-    """Handles TSP route optimization and caching"""
+class CoordinateManager:
+    """Unified coordinate management for caching and blacklisting"""
     
     def __init__(self):
         self.tsp_cache = {}
-        self.load_cache()
+        self.blacklisted_coords = {}
+        self.load_all_data()
     
-    def load_cache(self):
+    def load_all_data(self):
+        """Load both TSP cache and blacklist data"""
+        # Load TSP cache
         try:
             with open("tsp_cache.json", "r") as f:
                 self.tsp_cache = json.load(f)
         except:
             self.tsp_cache = {}
+        
+        # Load blacklist
+        try:
+            with open("resource_blacklist.json", "r") as f:
+                self.blacklisted_coords = json.load(f)
+        except:
+            self.blacklisted_coords = {}
     
-    def save_cache(self):
+    def save_all_data(self):
+        """Save both TSP cache and blacklist data"""
+        # Save TSP cache
         with open("tsp_cache.json", "w") as f:
             json.dump(self.tsp_cache, f)
+        
+        # Save blacklist
+        with open("resource_blacklist.json", "w") as f:
+            json.dump(self.blacklisted_coords, f, indent=2)
+    
+    def get_coord_key(self, x, y):
+        """Generate consistent coordinate key"""
+        return f"{x}_{y}"
+    
+    def is_blacklisted(self, x, y):
+        """Check if coordinates are blacklisted"""
+        return self.get_coord_key(x, y) in self.blacklisted_coords
+    
+    def add_to_blacklist(self, x, y, reason="can't be seen"):
+        """Add coordinates to blacklist"""
+        coord_key = self.get_coord_key(x, y)
+        if coord_key not in self.blacklisted_coords:
+            self.blacklisted_coords[coord_key] = {
+                "x": x,
+                "y": y,
+                "reason": reason,
+                "added_time": time.time()
+            }
+            Utils.debug(f"🚫 Added to blacklist: {x},{y} - {reason}")
+            self.save_all_data()
+    
+    def get_blacklist_stats(self):
+        """Get blacklist statistics"""
+        return {
+            "total_blacklisted": len(self.blacklisted_coords),
+            "blacklisted_coords": self.blacklisted_coords
+        }
     
     def get_cache_stats(self):
         """Get cache hit/miss statistics"""
@@ -292,8 +349,15 @@ class TSPOptimizer:
         """Reset cache statistics"""
         self.cache_hits = 0
         self.cache_misses = 0
+
+
+class TSPOptimizer:
+    """Handles TSP route optimization and caching"""
     
-    @GameUtils.timer
+    def __init__(self, coord_manager):
+        self.coord_manager = coord_manager
+    
+    @Utils.timer
     def adapted_tsp_algorithm(self, dataset, tsp_algorithm):
         # Create a mapping from (x, y) to the full data tuple
         xy_to_full_data = {(x, y): full_data for full_data in dataset for _, x, y, _ in [full_data]}
@@ -347,23 +411,23 @@ class TSPOptimizer:
         dist_matrix = calculate_all_distances()
         return tsp_algorithm(points, dist_matrix)
     
-    @GameUtils.timer
+    @Utils.timer
     def cached_adapted_tsp_algorithm(self, dataset, tsp_algorithm):
         x, y = GetX(Self()), GetY(Self())
-        key = f"{x}_{y}"
+        key = self.coord_manager.get_coord_key(x, y)
         
-        if key in self.tsp_cache:
+        if key in self.coord_manager.tsp_cache:
             if DEBUG_MODE:
-                GameUtils.debug(f"📋 TSP Cache HIT -> Using cached route for {key}")
+                Utils.debug(f"📋 TSP Cache HIT -> Using cached route for {key}")
             self.cache_hits = getattr(self, 'cache_hits', 0) + 1
-            return self.tsp_cache[key]
+            return self.coord_manager.tsp_cache[key]
         
         if DEBUG_MODE:
-            GameUtils.debug(f"🔄 TSP Cache MISS -> Computing new route for {key}")
+            Utils.debug(f"🔄 TSP Cache MISS -> Computing new route for {key}")
         self.cache_misses = getattr(self, 'cache_misses', 0) + 1
         result = self.adapted_tsp_algorithm(dataset, tsp_algorithm)
-        self.tsp_cache[key] = result
-        self.save_cache()
+        self.coord_manager.tsp_cache[key] = result
+        self.coord_manager.save_all_data()
         return result
 
 
@@ -378,7 +442,7 @@ class TravelManager:
             'chiva': list(range(1, 103, 6)),
         }
     
-    @GameUtils.timer
+    @Utils.timer
     def runebook(self, runebookID: str, travel_method: str, rune_number: int, book_name: str = "Unknown", book_index: int = 1) -> bool:
         """Travel using a runebook"""
         def check_mana():
@@ -396,7 +460,7 @@ class TravelManager:
                 elapsed_time = current_time - start_time
                 
                 if x != GetX(Self()) or y != GetY(Self()):
-                    GameUtils.debug("Position changed")
+                    Utils.debug("Position changed")
                     return
                     
                 if elapsed_time > n:
@@ -405,35 +469,35 @@ class TravelManager:
                 Wait(50)
 
         max_retries = 20
-        x, y = GameUtils.getxy()
+        x, y = Utils.getxy()
 
         # Show descriptive book name with book index and rune number
         if book_name != "Unknown":
             book_display = f"{book_name} {book_index}/{rune_number}"
         else:
             book_display = f"Book_{book_index}/{rune_number}"
-        GameUtils.debug(f"Runebook -> {book_display}")
+        Utils.debug(f"Runebook -> {book_display}")
 
         for retry in range(1, max_retries + 1):
             check_mana()
 
-            nowx, nowy = GameUtils.getxy()
+            nowx, nowy = Utils.getxy()
             if x != nowx or y != nowy:
                 return True
 
             if Dead():
-                GameUtils.debug("💀 Travel EXITING -> Character is dead")
+                Utils.debug("💀 Travel EXITING -> Character is dead")
                 return False
 
             if retry > 1:
-                GameUtils.debug(f"🔄 Travel retry -> {retry}x")
+                Utils.debug(f"🔄 Travel retry -> {retry}x")
 
             UseObject(runebookID)
             CheckLag(500)
-            if GameUtils.text_in_gump('20', self.travel_methods[travel_method][rune_number]):
+            if Utils.text_in_gump('20', self.travel_methods[travel_method][rune_number]):
                 await_xy_change(GetX(Self()), GetY(Self()), 5000)
 
-        GameUtils.debug(f"❌ Travel EXITING -> Too many retries ({max_retries})")
+        Utils.debug(f"❌ Travel EXITING -> Too many retries ({max_retries})")
         return False
     
     def find_runebooks_by_name(self, name: str) -> list:
@@ -458,7 +522,7 @@ class InventoryManager:
         self.tinkermenu_tinkertools = 23
         self.tinkermenu_shovel = 72
     
-    @GameUtils.timer
+    @Utils.timer
     def get_items(self, item_type, min_amount, amount, storage, item_name=""):
         """Retrieve items from storage if below minimum"""
         def wait_for_container_to_open(container_id, timeout=2000):
@@ -479,19 +543,19 @@ class InventoryManager:
 
         UseObject(storage)
         if not wait_for_container_to_open(storage):
-            GameUtils.debug("Failed to open storage.")
+            Utils.debug("Failed to open storage.")
             return
 
         CheckLag(20000)
         if GetQuantity(FindTypeEx(item_type, 0x0000, storage, False)) >= amount:
-            GameUtils.debug(f"Storage -> Uploading {item_name}")
+            Utils.debug(f"Storage -> Uploading {item_name}")
             MoveItem(FindItem(), amount, Backpack(), 0, 0, 0)
             Wait(500)
         else:
-            GameUtils.debug(f"Storage -> Out of {item_name}")
+            Utils.debug(f"Storage -> Out of {item_name}")
             exit()
     
-    @GameUtils.timer
+    @Utils.timer
     def unload(self, resource_tracker):
         """Unload items to storage and update resource counts"""
         if NewMoveXY(GetX(STORAGE), GetY(STORAGE), True, 1, True):
@@ -518,13 +582,13 @@ class InventoryManager:
         """Craft items using tinkering"""
         def craft_item():
             UseType2(TINKER_TOOL)
-            GameUtils.text_in_gump("TINKERING MENU", self.tinker_menu_section, 10)
-            GameUtils.text_in_gump("TINKERING MENU", crafting_button, 10)
-            GameUtils.text_in_gump("TINKERING MENU", 0, 10)
+            Utils.text_in_gump("TINKERING MENU", self.tinker_menu_section, 10)
+            Utils.text_in_gump("TINKERING MENU", crafting_button, 10)
+            Utils.text_in_gump("TINKERING MENU", 0, 10)
 
         initial_count = Count(item_type)
         while Count(item_type) < target_amount:
-            GameUtils.debug(f"Crafting -> {item_name} {Count(item_type)} / {target_amount}")
+            Utils.debug(f"Crafting -> {item_name} {Count(item_type)} / {target_amount}")
             self.get_items(IRON, 10, 100, STORAGE, "Iron")
             craft_item()
             
@@ -542,16 +606,15 @@ class InventoryManager:
                     stats['tools_crafted']['tinkering_tools'] += 1
                 initial_count = Count(item_type)
 
-        GameUtils.debug(f"Crafting -> {item_name} {Count(item_type)} / {target_amount}")
+        Utils.debug(f"Crafting -> {item_name} {Count(item_type)} / {target_amount}")
 
 
 class ResourceGatherer:
     """Universal resource gathering operations (mining, lumberjacking, fishing, etc.)"""
     
-    def __init__(self):
+    def __init__(self, coord_manager):
         self.visited_waypoints = []
-        self.blacklist_file = "resource_blacklist.json"
-        self.blacklisted_coords = self.load_blacklist()
+        self.coord_manager = coord_manager
         
         # Resource type configurations
         self.resource_configs = {
@@ -639,55 +702,23 @@ class ResourceGatherer:
             config['messages']['all'] = (config['messages']['fail'] + "|" + 
                                        config['messages']['end'] + "|is attacking you")
     
-    def load_blacklist(self):
-        """Load blacklisted coordinates from file"""
-        try:
-            if os.path.exists(self.blacklist_file):
-                with open(self.blacklist_file, 'r') as f:
-                    return json.load(f)
-            return {}
-        except Exception as e:
-            GameUtils.debug(f"❌ Failed to load blacklist: {e}")
-            return {}
-    
-    def save_blacklist(self):
-        """Save blacklisted coordinates to file"""
-        try:
-            with open(self.blacklist_file, 'w') as f:
-                json.dump(self.blacklisted_coords, f, indent=2)
-        except Exception as e:
-            GameUtils.debug(f"❌ Failed to save blacklist: {e}")
-    
     def add_to_blacklist(self, x, y, reason="can't be seen"):
         """Add coordinates to blacklist"""
-        coord_key = f"{x}_{y}"
-        if coord_key not in self.blacklisted_coords:
-            self.blacklisted_coords[coord_key] = {
-                "x": x,
-                "y": y,
-                "reason": reason,
-                "added_time": time.time()
-            }
-            GameUtils.debug(f"🚫 Added to blacklist: {x},{y} - {reason}")
-            self.save_blacklist()
+        self.coord_manager.add_to_blacklist(x, y, reason)
     
     def is_blacklisted(self, x, y):
         """Check if coordinates are blacklisted"""
-        coord_key = f"{x}_{y}"
-        return coord_key in self.blacklisted_coords
+        return self.coord_manager.is_blacklisted(x, y)
     
     def get_blacklist_stats(self):
         """Get blacklist statistics"""
-        return {
-            "total_blacklisted": len(self.blacklisted_coords),
-            "blacklisted_coords": self.blacklisted_coords
-        }
+        return self.coord_manager.get_blacklist_stats()
     
-    @GameUtils.timer
+    @Utils.timer
     def gather(self, resource_type, tile_list, resource_book, rune_number, min_waypoint_distance=0, stats=None):
         """Universal resource gathering operation"""
         if resource_type not in self.resource_configs:
-            GameUtils.debug(f"❌ Unknown resource type: {resource_type}")
+            Utils.debug(f"❌ Unknown resource type: {resource_type}")
             return False
             
         config = self.resource_configs[resource_type]
@@ -701,7 +732,7 @@ class ResourceGatherer:
         for tile, x, y, z in tile_list:
             # Check if coordinates are blacklisted
             if self.is_blacklisted(x, y):
-                GameUtils.debug(f"🚫 Skipping blacklisted coordinates: {x},{y}")
+                Utils.debug(f"🚫 Skipping blacklisted coordinates: {x},{y}")
                 continue
                 
             if all(Dist(wp[0], wp[1], x, y) > min_waypoint_distance for wp in self.visited_waypoints):
@@ -850,7 +881,7 @@ class ResourceTracker:
         
         # Initialize with the specified resource type
         if resource_type not in self.resource_configs:
-            GameUtils.debug(f"❌ Unknown resource type for tracker: {resource_type}")
+            Utils.debug(f"❌ Unknown resource type for tracker: {resource_type}")
             resource_type = "mining"
         
         self.current_config = self.resource_configs[resource_type]
@@ -860,9 +891,9 @@ class ResourceTracker:
         if resource_type in self.resource_configs:
             self.resource_type = resource_type
             self.current_config = self.resource_configs[resource_type]
-            GameUtils.debug(f"📊 Resource Tracker: {resource_type} ")
+            Utils.debug(f"📊 Resource Tracker: {resource_type} ")
         else:
-            GameUtils.debug(f"❌ Unknown resource type: {resource_type}")
+            Utils.debug(f"❌ Unknown resource type: {resource_type}")
     
     def add_resource_type(self, resource_type, title, items):
         """Add a new resource type configuration"""
@@ -870,7 +901,7 @@ class ResourceTracker:
             "title": title,
             "items": items
         }
-        GameUtils.debug(f"➕ Added new resource type: {resource_type}")
+        Utils.debug(f"➕ Added new resource type: {resource_type}")
     
     def update_counts(self, item):
         """Update resource counts with given item"""
@@ -894,12 +925,12 @@ class ResourceTracker:
                     # Check if color matches, if color is 0xFFFF (any color fits), or if color is omitted
                     if "color" not in info or info["color"] == 0xFFFF or info["color"] == item_color:
                         info["amount"] += item_quantity
-                        GameUtils.debug(f"{resource_name}: +{item_quantity}")
+                        Utils.debug(f"{resource_name}: +{item_quantity}")
                         return
             # If no type specified, check by color only
             elif "color" in info and info["color"] == item_color:
                 info["amount"] += item_quantity
-                GameUtils.debug(f"{resource_name}: +{item_quantity}")
+                Utils.debug(f"{resource_name}: +{item_quantity}")
                 return
     
     def calculate_counts(self):
@@ -930,50 +961,8 @@ class Discord:
         self.webhook, self.botname, self.avatar = webhook, botname, avatar
 
     def get_resource_name(self, key: str) -> str:
-        """Convert resource key to display name"""
-        name_mapping = {
-            # Mining resources
-            "Iron": "Iron",
-            "Shadow": "Shadow",
-            "Copper": "Copper", 
-            "Bronze": "Bronze",
-            "Gold": "Gold",
-            "Agapite": "Agapite",
-            "Verite": "Verite",
-            "Valorite": "Valorite",
-            # Gems
-            "Amethyst": "Amethyst",
-            "Citrine": "Citrine",
-            "Diamond": "Diamond",
-            "Emerald": "Emerald",
-            "Ruby": "Ruby",
-            "Sapphire": "Sapphire",
-            "Star Sapphire": "Star Sapphire",
-            "Tourmaline": "Tourmaline",
-            # Lumberjacking
-            "Regular Wood": "Regular Wood",
-            "Oak Wood": "Oak Wood",
-            "Ash Wood": "Ash Wood",
-            "Yew Wood": "Yew Wood",
-            "Heartwood": "Heartwood",
-            "Bloodwood": "Bloodwood",
-            "Frostwood": "Frostwood",
-            # Fishing
-            "Fish": "Fish",
-            "Pearl": "Pearl",
-            "Crab": "Crab",
-            "Lobster": "Lobster",
-            "Shrimp": "Shrimp",
-            # Stats
-            "runs_completed": "Runs Completed",
-            "total_travels": "Total Travels",
-            "total_gathering_attempts": "Gathering Attempts",
-            "cache_hits": "Cache Hits",
-            "cache_misses": "Cache Misses",
-            "tools_crafted": "Tools Crafted",
-            "materials_used": "Materials Used"
-        }
-        return name_mapping.get(key, key)
+        """Format keys into user-friendly labels (no hardcoded map)."""
+        return Utils.format_label(key)
 
     def send_report(self, title: str, *data):
         """Send formatted report with embeds"""
@@ -1034,7 +1023,7 @@ class ResourceBot:
     TSP optimization, travel management, and resource tracking.
     
     Attributes:
-        utils (GameUtils): Universal game utility functions
+        utils (Utils): Universal game utility functions
         tile_scanner (TileScanner): Handles tile detection and scanning
         tsp_optimizer (TSPOptimizer): Manages route optimization and caching
         travel_manager (TravelManager): Handles runebook travel operations
@@ -1067,12 +1056,13 @@ class ResourceBot:
                 'boards': 0
             }
         }
-        self.utils = GameUtils()
+        self.utils = Utils()
+        self.coord_manager = CoordinateManager()
         self.tile_scanner = TileScanner()
-        self.tsp_optimizer = TSPOptimizer()
+        self.tsp_optimizer = TSPOptimizer(self.coord_manager)
         self.travel_manager = TravelManager()
         self.inventory_manager = InventoryManager()
-        self.resource_gatherer = ResourceGatherer()
+        self.resource_gatherer = ResourceGatherer(self.coord_manager)
         self.resource_tracker = ResourceTracker("mining")  # Default to mining
         self.discord = Discord(DISCORD_WEBHOOK)
         
@@ -1104,7 +1094,7 @@ class ResourceBot:
                 resource_book_name = FISHING_BOOK_NAME
                 tool_to_check = FISHING_POLE
             else:
-                GameUtils.log_error(ValueError(f"Unknown resource type: {resource_type}"), "ResourceBot.perform_diagnostic_checks")
+                Utils.log_error(ValueError(f"Unknown resource type: {resource_type}"), "ResourceBot.perform_diagnostic_checks")
                 return
 
             self.utils.check(len(self.travel_manager.find_runebooks_by_name(resource_book_name)) > 0, f"{resource_type.upper()} BOOK NAME FOUND")
@@ -1144,7 +1134,7 @@ class ResourceBot:
             waypoint_distance = FISHING_WAYPOINT_DISTANCE
             tiles = WATER_TILES
         else:
-            GameUtils.log_error(ValueError(f"Unknown resource type: {resource_type}"), "ResourceBot.run")
+            Utils.log_error(ValueError(f"Unknown resource type: {resource_type}"), "ResourceBot.run")
             return
         
         self.home_books = self.travel_manager.find_runebooks_by_name(HOME_BOOK_NAME)
@@ -1235,25 +1225,25 @@ def main():
     try:
         # Validate configuration before starting
         valid_travel_methods = ["magery", "chiva", "charges", "gate"]
-        GameUtils.check(TRAVEL_METHOD in valid_travel_methods, f"TRAVEL_METHOD '{TRAVEL_METHOD}' is valid")
-        GameUtils.check(1 <= MINING_SCAN_RADIUS <= 200, f"MINING_SCAN_RADIUS {MINING_SCAN_RADIUS} is between 1-200")
-        GameUtils.check(1 <= LUMBERJACKING_SCAN_RADIUS <= 200, f"LUMBERJACKING_SCAN_RADIUS {LUMBERJACKING_SCAN_RADIUS} is between 1-200")
-        GameUtils.check(1 <= FISHING_SCAN_RADIUS <= 200, f"FISHING_SCAN_RADIUS {FISHING_SCAN_RADIUS} is between 1-200")
-        GameUtils.check(MINING_WAYPOINT_DISTANCE >= 0, f"MINING_WAYPOINT_DISTANCE {MINING_WAYPOINT_DISTANCE} is >= 0")
-        GameUtils.check(LUMBERJACKING_WAYPOINT_DISTANCE >= 0, f"LUMBERJACKING_WAYPOINT_DISTANCE {LUMBERJACKING_WAYPOINT_DISTANCE} is >= 0")
-        GameUtils.check(FISHING_WAYPOINT_DISTANCE >= 0, f"FISHING_WAYPOINT_DISTANCE {FISHING_WAYPOINT_DISTANCE} is >= 0")
-        GameUtils.check(1 <= HOME_NUMBER <= 16, f"HOME_NUMBER {HOME_NUMBER} is between 1-16")
+        Utils.check(TRAVEL_METHOD in valid_travel_methods, f"TRAVEL_METHOD '{TRAVEL_METHOD}' is valid")
+        Utils.check(1 <= MINING_SCAN_RADIUS <= 200, f"MINING_SCAN_RADIUS {MINING_SCAN_RADIUS} is between 1-200")
+        Utils.check(1 <= LUMBERJACKING_SCAN_RADIUS <= 200, f"LUMBERJACKING_SCAN_RADIUS {LUMBERJACKING_SCAN_RADIUS} is between 1-200")
+        Utils.check(1 <= FISHING_SCAN_RADIUS <= 200, f"FISHING_SCAN_RADIUS {FISHING_SCAN_RADIUS} is between 1-200")
+        Utils.check(MINING_WAYPOINT_DISTANCE >= 0, f"MINING_WAYPOINT_DISTANCE {MINING_WAYPOINT_DISTANCE} is >= 0")
+        Utils.check(LUMBERJACKING_WAYPOINT_DISTANCE >= 0, f"LUMBERJACKING_WAYPOINT_DISTANCE {LUMBERJACKING_WAYPOINT_DISTANCE} is >= 0")
+        Utils.check(FISHING_WAYPOINT_DISTANCE >= 0, f"FISHING_WAYPOINT_DISTANCE {FISHING_WAYPOINT_DISTANCE} is >= 0")
+        Utils.check(1 <= HOME_NUMBER <= 16, f"HOME_NUMBER {HOME_NUMBER} is between 1-16")
         
         # Initialize and run the bot
         bot = ResourceBot()
         bot.run(RESOURCE_TYPE)
         
     except KeyboardInterrupt:
-        GameUtils.log_warning("Script interrupted by user")
+        Utils.log_warning("Script interrupted by user")
         print("\n🛑 Script stopped by user")
         
     except Exception as e:
-        GameUtils.log_error(e, "Main execution")
+        Utils.log_error(e, "Main execution")
         print(f"\n💥 Script crashed: {str(e)}")
         if DEBUG_MODE:
             import traceback
@@ -1302,7 +1292,7 @@ def main():
             if blacklist_stats['total_blacklisted'] > 0:
                 print(f"\n🚫 BLACKLIST STATISTICS:")
                 print(f"   Total Blacklisted Coordinates: {blacklist_stats['total_blacklisted']}")
-                print(f"   Blacklist File: {bot.resource_gatherer.blacklist_file}")
+                print(f"   Blacklist File: resource_blacklist.json")
         print("="*50)
         print("👋 Script execution ended")
 

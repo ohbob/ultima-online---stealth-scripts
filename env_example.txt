@@ -1,0 +1,7 @@
+# Discord Webhook Configuration
+# Replace the URL below with your actual Discord webhook URL
+DISCORD_WEBHOOK=https://discord.com/api/webhooks/YOUR_WEBHOOK_URL_HERE
+
+# Other environment variables can be added here
+# DEBUG_MODE=true
+# DISCORD_MESSAGE_INTERVAL=60
