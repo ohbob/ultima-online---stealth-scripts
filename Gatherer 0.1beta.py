@@ -1263,8 +1263,8 @@ def main():
         print("📊 FINAL STATISTICS")
         print("="*50)
         if 'bot' in locals():
-            # Get cache statistics from TSP optimizer
-            cache_stats = bot.tsp_optimizer.get_cache_stats()
+            # Get cache statistics
+            cache_stats = bot.coord_manager.get_cache_stats()
             bot.stats['cache_hits'] = cache_stats['cache_hits']
             bot.stats['cache_misses'] = cache_stats['cache_misses']
             
