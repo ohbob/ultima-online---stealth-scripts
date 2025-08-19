@@ -430,6 +430,17 @@ class TSPOptimizer:
         self.coord_manager.save_all_data()
         return result
 
+    def get_cache_stats(self):
+        """Expose hit/miss stats for final reporting."""
+        return {
+            'cache_hits': getattr(self, 'cache_hits', 0),
+            'cache_misses': getattr(self, 'cache_misses', 0)
+        }
+
+    def reset_cache_stats(self):
+        self.cache_hits = 0
+        self.cache_misses = 0
+
 
 class TravelManager:
     """Handles travel and runebook operations"""
