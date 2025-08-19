@@ -630,16 +630,17 @@ class ResourceGatherer:
                     'target_amount': 3  # Keep 3 shovels in inventory
                 },
                 'messages': {
-                    'fail': "You loosen some rocks| You dig some ",
-                    'end': ("There is nothing here |"
-                           "There is no metal |"
-                           "You cannot mine |"
+                    'blacklist': ("You cannot mine |"
                            "You have no line |"
                            "That is too far |"
                            "Try mining elsewhere |"
-                           "You can't mine |"
-                           "someone |"
                            "Target cannot be"),
+                    'fail': "You loosen some rocks| You dig some ",
+                    'end': ("There is nothing here |"
+                           "There is no metal |"
+                           "someone |"
+                           )
+                           ,
                     'all': None
                 },
                 'tile_ranges': [(1339, 1387)],  # Cave floor range
@@ -657,14 +658,14 @@ class ResourceGatherer:
                     'target_amount': 3
                 },
                 'messages': {
+                    'blacklist': ("You cannot cut |"
+                                  "That is too far |"
+                                  "Try cutting elsewhere |"
+                                  "Target cannot be"),
                     'fail': "You chop some wood| You cut some ",
                     'end': ("There is nothing here |"
-                           "You cannot cut |"
-                           "That is too far |"
-                           "Try cutting elsewhere |"
-                           "You can't cut |"
                            "someone |"
-                           "Target cannot be"),
+                           ),
                     'all': None
                 },
                 'tile_ranges': [],
@@ -682,14 +683,14 @@ class ResourceGatherer:
                     'target_amount': 2
                 },
                 'messages': {
+                    'blacklist': ("You cannot fish |"
+                                  "That is too far |"
+                                  "Try fishing elsewhere |"
+                                  "Target cannot be"),
                     'fail': "You pull out a fish| You catch some ",
                     'end': ("There is nothing here |"
-                           "You cannot fish |"
-                           "That is too far |"
-                           "Try fishing elsewhere |"
-                           "You can't fish |"
                            "someone |"
-                           "Target cannot be"),
+                           ),
                     'all': None
                 },
                 'tile_ranges': [],
@@ -697,10 +698,13 @@ class ResourceGatherer:
             }
         }
         
-        # Build message_all for each resource type
+        # Build message_all for each resource type (fail + end + blacklist)
         for resource_type, config in self.resource_configs.items():
-            config['messages']['all'] = (config['messages']['fail'] + "|" + 
-                                       config['messages']['end'] + "|is attacking you")
+            parts = [config['messages']['fail'], config['messages']['end']]
+            if 'blacklist' in config['messages']:
+                parts.append(config['messages']['blacklist'])
+            parts.append("is attacking you")
+            config['messages']['all'] = "|".join(parts)
     
     def add_to_blacklist(self, x, y, reason="can't be seen"):
         """Add coordinates to blacklist"""
@@ -780,16 +784,17 @@ class ResourceGatherer:
                     if not WaitJournalLine(start_time, messages['all'], 2000):
                         break
 
-                    # Check for "can't be seen" messages and blacklist coordinates
-                    if InJournalBetweenTimes("can't be seen", start_time, datetime.datetime.now()) > 0:
-                        self.add_to_blacklist(x, y, "can't be seen")
+                    now = datetime.datetime.now()
+
+                    # simple: if (end OR blacklist), then stop; if blacklist hit, add to blacklist
+                    bl = messages.get('blacklist', '')
+                    combined = messages['end'] + ('|' + bl if bl else '')
+                    if InJournalBetweenTimes(combined, start_time, now) > 0:
+                        if bl and InJournalBetweenTimes(bl, start_time, now) > 0:
+                            self.add_to_blacklist(x, y, 'blacklist')
                         gathering = False
                         Wait(500)
                         break
-
-                    if InJournalBetweenTimes(messages['end'], start_time, datetime.datetime.now()) > 0:
-                        gathering = False
-                        Wait(500)
 
         return True
     
