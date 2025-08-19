@@ -630,7 +630,7 @@ class ResourceGatherer:
                     'target_amount': 3  # Keep 3 shovels in inventory
                 },
                 'messages': {
-                    'blacklist': ("You cannot mine |"
+                    'blacklist': ("You cannot mine |You can't mine |"
                            "You have no line |"
                            "That is too far |"
                            "Try mining elsewhere |"
@@ -658,7 +658,7 @@ class ResourceGatherer:
                     'target_amount': 3
                 },
                 'messages': {
-                    'blacklist': ("You cannot cut |"
+                    'blacklist': ("You cannot cut |You can't cut |"
                                   "That is too far |"
                                   "Try cutting elsewhere |"
                                   "Target cannot be"),
@@ -683,7 +683,7 @@ class ResourceGatherer:
                     'target_amount': 2
                 },
                 'messages': {
-                    'blacklist': ("You cannot fish |"
+                    'blacklist': ("You cannot fish |You can't fish |"
                                   "That is too far |"
                                   "Try fishing elsewhere |"
                                   "Target cannot be"),
