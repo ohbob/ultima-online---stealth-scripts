@@ -27,6 +27,7 @@
 import time
 import datetime
 import json
+import os
 from concurrent.futures import ThreadPoolExecutor
 from functools import wraps
 from py_stealth import *
@@ -395,7 +396,7 @@ class TravelManager:
                 elapsed_time = current_time - start_time
                 
                 if x != GetX(Self()) or y != GetY(Self()):
-                    ClientPrint("Position changed")
+                    GameUtils.debug("Position changed")
                     return
                     
                 if elapsed_time > n:
@@ -549,6 +550,8 @@ class ResourceGatherer:
     
     def __init__(self):
         self.visited_waypoints = []
+        self.blacklist_file = "resource_blacklist.json"
+        self.blacklisted_coords = self.load_blacklist()
         
         # Resource type configurations
         self.resource_configs = {
@@ -636,6 +639,50 @@ class ResourceGatherer:
             config['messages']['all'] = (config['messages']['fail'] + "|" + 
                                        config['messages']['end'] + "|is attacking you")
     
+    def load_blacklist(self):
+        """Load blacklisted coordinates from file"""
+        try:
+            if os.path.exists(self.blacklist_file):
+                with open(self.blacklist_file, 'r') as f:
+                    return json.load(f)
+            return {}
+        except Exception as e:
+            GameUtils.debug(f"❌ Failed to load blacklist: {e}")
+            return {}
+    
+    def save_blacklist(self):
+        """Save blacklisted coordinates to file"""
+        try:
+            with open(self.blacklist_file, 'w') as f:
+                json.dump(self.blacklisted_coords, f, indent=2)
+        except Exception as e:
+            GameUtils.debug(f"❌ Failed to save blacklist: {e}")
+    
+    def add_to_blacklist(self, x, y, reason="can't be seen"):
+        """Add coordinates to blacklist"""
+        coord_key = f"{x}_{y}"
+        if coord_key not in self.blacklisted_coords:
+            self.blacklisted_coords[coord_key] = {
+                "x": x,
+                "y": y,
+                "reason": reason,
+                "added_time": time.time()
+            }
+            GameUtils.debug(f"🚫 Added to blacklist: {x},{y} - {reason}")
+            self.save_blacklist()
+    
+    def is_blacklisted(self, x, y):
+        """Check if coordinates are blacklisted"""
+        coord_key = f"{x}_{y}"
+        return coord_key in self.blacklisted_coords
+    
+    def get_blacklist_stats(self):
+        """Get blacklist statistics"""
+        return {
+            "total_blacklisted": len(self.blacklisted_coords),
+            "blacklisted_coords": self.blacklisted_coords
+        }
+    
     @GameUtils.timer
     def gather(self, resource_type, tile_list, resource_book, rune_number, min_waypoint_distance=0, stats=None):
         """Universal resource gathering operation"""
@@ -652,6 +699,11 @@ class ResourceGatherer:
         weight_limit = config['weight_limit']
 
         for tile, x, y, z in tile_list:
+            # Check if coordinates are blacklisted
+            if self.is_blacklisted(x, y):
+                GameUtils.debug(f"🚫 Skipping blacklisted coordinates: {x},{y}")
+                continue
+                
             if all(Dist(wp[0], wp[1], x, y) > min_waypoint_distance for wp in self.visited_waypoints):
                 self.visited_waypoints.append((x, y))
 
@@ -695,6 +747,13 @@ class ResourceGatherer:
                         TargetToTile(tile, x, y, z)
 
                     if not WaitJournalLine(start_time, messages['all'], 2000):
+                        break
+
+                    # Check for "can't be seen" messages and blacklist coordinates
+                    if InJournalBetweenTimes("can't be seen", start_time, datetime.datetime.now()) > 0:
+                        self.add_to_blacklist(x, y, "can't be seen")
+                        gathering = False
+                        Wait(500)
                         break
 
                     if InJournalBetweenTimes(messages['end'], start_time, datetime.datetime.now()) > 0:
@@ -1162,7 +1221,7 @@ class ResourceBot:
                             }
                             
                             # Send Discord report with resource counts and session stats
-                            self.discord.send_report(f"{RESOURCE_TYPE.title()} Stats", resource_counts, session_stats)
+                            self.discord.send_report(f"{CharName()} {RESOURCE_TYPE.title()} Stats", resource_counts, session_stats)
                             self.last_discord_message = current_time
                         else:
                             print(stats)
@@ -1237,6 +1296,13 @@ def main():
                 print(f"\n📦 MATERIALS USED:")
                 for material, count in used_materials.items():
                     print(f"   {material.replace('_', ' ').title()}: {count}")
+            
+            # Blacklist statistics
+            blacklist_stats = bot.resource_gatherer.get_blacklist_stats()
+            if blacklist_stats['total_blacklisted'] > 0:
+                print(f"\n🚫 BLACKLIST STATISTICS:")
+                print(f"   Total Blacklisted Coordinates: {blacklist_stats['total_blacklisted']}")
+                print(f"   Blacklist File: {bot.resource_gatherer.blacklist_file}")
         print("="*50)
         print("👋 Script execution ended")
 
