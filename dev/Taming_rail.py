@@ -14,10 +14,14 @@ SKILL = 'Animal Taming'
 GOAL = 120.0
 GAIN_WINDOW = 10.0  # skill points below current — at 30 tames min_tame 20.0 to 30.0
 TAME_TIMEOUT = 25
+TAME_START_WAIT = 5
+TAME_RETRIES = 3
+TARGET_WAIT_MS = 2000
 KILL_TIMEOUT = 25
 FIND_DISTANCE = 40
 FIND_VERTICAL = 40
 
+JOURNAL_STARTED = 'start to tame'
 JOURNAL_TAMED = 'accept you '
 JOURNAL_RETRY = 'fail to |clear path |is too far '
 JOURNAL_ABORT = 'Someone else is already taming |cannot be |too far|looks tame '
@@ -173,6 +177,25 @@ def kill_serial(serial):
         Wait(50)
 
 
+def cast_tame(mob):
+    if not IsObjectExists(mob) or GetHP(mob) <= 0:
+        return False
+    if TargetPresent():
+        CancelTarget()
+    if IsWarMode(Self()):
+        SetWarMode(False)
+    UseSkill(SKILL)
+    if not WaitForTarget(TARGET_WAIT_MS):
+        if TargetPresent():
+            CancelTarget()
+        return False
+    WaitTargetObject(mob)
+    if TargetPresent():
+        CancelTarget()
+        return False
+    return True
+
+
 def kill_if_full():
     if PetsCurrent() < (MaxPets() or 5):
         return True
@@ -206,40 +229,69 @@ def tame_here():
         if not mob or not kill_if_full():
             return
 
-        while Connected() and not Dead() and IsObjectExists(mob) and GetHP(mob) > 0:
-            if GetDistance(mob) > 1:
-                NewMoveXY(GetX(mob), GetY(mob), True, 1, True)
-            attempt_start = datetime.now()
-            deadline = attempt_start + timedelta(seconds=TAME_TIMEOUT)
-            UseSkill(SKILL)
-            WaitTargetObject(mob)
+        for attempt in range(TAME_RETRIES):
+            if not Connected() or Dead() or not IsObjectExists(mob) or GetHP(mob) <= 0:
+                break
 
-            while Connected() and not Dead():
-                now = datetime.now()
-                if InJournalBetweenTimes(JOURNAL_TAMED, attempt_start, now) > 0:
-                    kill_serial(mob)
+            while GetDistance(mob) > 1:
+                if not Connected() or Dead() or not IsObjectExists(mob) or GetHP(mob) <= 0:
                     break
-                if InJournalBetweenTimes(JOURNAL_TOO_MANY, attempt_start, now) > 0:
+                NewMoveXY(GetX(mob), GetY(mob), True, 1, True)
+                Wait(50)
+
+            if not IsObjectExists(mob) or GetHP(mob) <= 0:
+                break
+
+            if not cast_tame(mob):
+                continue
+
+            t0 = datetime.now()
+            start_deadline = t0 + timedelta(seconds=TAME_START_WAIT)
+            saw_start = False
+            while Connected() and not Dead() and datetime.now() < start_deadline:
+                if InJournalBetweenTimes(JOURNAL_STARTED, t0, datetime.now()) > 0:
+                    saw_start = True
+                    break
+                Wait(50)
+
+            if not saw_start:
+                if TargetPresent():
+                    CancelTarget()
+                continue
+
+            outcome_deadline = datetime.now() + timedelta(seconds=TAME_TIMEOUT)
+            tamed = False
+            aborted = False
+            while Connected() and not Dead() and datetime.now() < outcome_deadline:
+                now = datetime.now()
+                if InJournalBetweenTimes(JOURNAL_TAMED, t0, now) > 0:
+                    kill_serial(mob)
+                    tamed = True
+                    break
+                if InJournalBetweenTimes(JOURNAL_ABORT, t0, now) > 0:
+                    Ignore(mob)
+                    aborted = True
+                    break
+                if InJournalBetweenTimes(JOURNAL_TOO_MANY, t0, now) > 0:
                     if not kill_if_full():
                         return
-                    attempt_start = datetime.now()
-                    deadline = attempt_start + timedelta(seconds=TAME_TIMEOUT)
-                    UseSkill(SKILL)
-                    WaitTargetObject(mob)
-                    continue
-                if InJournalBetweenTimes(JOURNAL_RETRY, attempt_start, now) > 0:
-                    attempt_start = datetime.now()
-                    deadline = attempt_start + timedelta(seconds=TAME_TIMEOUT)
-                    UseSkill(SKILL)
-                    WaitTargetObject(mob)
-                elif InJournalBetweenTimes(JOURNAL_ABORT, attempt_start, now) > 0:
-                    Ignore(mob)
                     break
-                elif now > deadline:
+                if InJournalBetweenTimes(JOURNAL_RETRY, t0, now) > 0:
                     break
+                if TargetPresent():
+                    CancelTarget()
                 if GetDistance(mob) > 1:
                     NewMoveXY(GetX(mob), GetY(mob), True, 1, True)
                 Wait(50)
+
+            if tamed or aborted:
+                break
+
+            if TargetPresent():
+                CancelTarget()
+            Wait(200)
+        else:
+            Ignore(mob)
 
 
 def main():
