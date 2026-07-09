@@ -15,7 +15,7 @@ GOAL = 120.0
 GAIN_WINDOW = 10.0  # skill points below current — at 30 tames min_tame 20.0 to 30.0
 TAME_TIMEOUT = 25          # idle seconds since last start/Good before giving up
 TAME_START_WAIT = 5
-TAME_RETRIES = 3
+TAME_RETRIES = 30
 TARGET_WAIT_MS = 2000
 KILL_TIMEOUT = 25
 FIND_DISTANCE = 40
@@ -182,15 +182,19 @@ def bodies_for_skill(skill_value):
     return list(dict.fromkeys(a['body'] for a in in_window))
 
 
-def kill_serial(serial):
+def kill_for_release(serial):
+    """Kill tamed pet to free a follower slot. Taming leaves peace mode — war on to hit.
+    Training client may equip butcher knife/dagger; not required by this script."""
+    SetWarMode(True)
     deadline = datetime.now() + timedelta(seconds=KILL_TIMEOUT)
     while Connected() and not Dead() and IsObjectExists(serial) and GetHP(serial) > 0 and datetime.now() < deadline:
+        if TargetPresent():
+            CancelTarget()
         if GetDistance(serial) > 1:
             NewMoveXY(GetX(serial), GetY(serial), True, 1, True)
         Attack(serial)
-        if TargetPresent():
-            CancelTarget()
         Wait(50)
+    SetWarMode(False)
 
 
 def cast_tame(mob):
@@ -221,7 +225,7 @@ def kill_if_full():
             continue
         if 'tame' not in GetTooltip(serial).lower():
             continue
-        kill_serial(serial)
+        kill_for_release(serial)
         return True
     return False
 
@@ -243,6 +247,8 @@ def wait_tame_outcome(mob, journal_t0):
         if not IsObjectExists(mob) or GetHP(mob) <= 0:
             return 'gone'
         if InJournalBetweenTimes(JOURNAL_TAMED, journal_t0, now) > 0:
+            Wait(100)
+            kill_for_release(mob)
             return 'tamed'
         if InJournalBetweenTimes(JOURNAL_ABORT, journal_t0, now) > 0:
             return 'abort'
@@ -263,79 +269,114 @@ def wait_tame_outcome(mob, journal_t0):
     return 'disconnect'
 
 
+def mob_alive(mob):
+    return mob and IsObjectExists(mob) and GetHP(mob) > 0
+
+
+def move_to_mob(mob):
+    while GetDistance(mob) > 1:
+        if not Connected() or Dead() or not mob_alive(mob):
+            return False
+        NewMoveXY(GetX(mob), GetY(mob), True, 1, True)
+        Wait(50)
+    return mob_alive(mob)
+
+
+def start_tame(mob):
+    """Move, cast, wait for journal start. Returns journal_t0 or None."""
+    if not move_to_mob(mob):
+        return None
+    cast_t0 = datetime.now()
+    if not cast_tame(mob):
+        return None
+    journal_t0 = wait_tame_started(cast_t0)
+    if journal_t0 is None:
+        if TargetPresent():
+            CancelTarget()
+        Wait(200)
+    return journal_t0
+
+
+def recast_tame(mob):
+    """Recast on same mob after fail/retry/timeout — no start-retry budget."""
+    while Connected() and not Dead() and mob_alive(mob):
+        journal_t0 = start_tame(mob)
+        if journal_t0 is not None:
+            return journal_t0
+    return None
+
+
+def find_mob(body_types):
+    for body in body_types:
+        if FindType(body, Ground()) <= 0:
+            continue
+        for serial in sorted(GetFindedList(), key=GetDistance):
+            if mob_alive(serial):
+                return serial
+    return 0
+
+
 def tame_here():
     SetFindDistance(FIND_DISTANCE)
     SetFindVertical(FIND_VERTICAL)
     body_types = bodies_for_skill(GetSkillValue(SKILL))
 
     while Connected() and not Dead():
-        mob = 0
-        for body in body_types:
-            if FindType(body, Ground()) <= 0:
-                continue
-            for serial in sorted(GetFindedList(), key=GetDistance):
-                if IsObjectExists(serial) and GetHP(serial) > 0:
-                    mob = serial
-                    break
-            if mob:
-                break
+        mob = find_mob(body_types)
         if not mob or not kill_if_full():
             return
 
-        tamed = False
-        aborted = False
-
-        for attempt in range(TAME_RETRIES):
-            if not Connected() or Dead() or not IsObjectExists(mob) or GetHP(mob) <= 0:
+        journal_t0 = None
+        for _ in range(TAME_RETRIES):
+            if not mob_alive(mob):
+                break
+            journal_t0 = start_tame(mob)
+            if journal_t0 is not None:
                 break
 
-            while GetDistance(mob) > 1:
-                if not Connected() or Dead() or not IsObjectExists(mob) or GetHP(mob) <= 0:
-                    break
-                NewMoveXY(GetX(mob), GetY(mob), True, 1, True)
-                Wait(50)
+        if not mob_alive(mob):
+            if TargetPresent():
+                CancelTarget()
+            continue
 
-            if not IsObjectExists(mob) or GetHP(mob) <= 0:
-                break
+        if journal_t0 is None:
+            Ignore(mob)
+            if TargetPresent():
+                CancelTarget()
+            continue
 
-            cast_t0 = datetime.now()
-            if not cast_tame(mob):
-                continue
-
-            journal_t0 = wait_tame_started(cast_t0)
-            if journal_t0 is None:
-                if TargetPresent():
-                    CancelTarget()
-                Wait(200)
-                continue
-
+        while Connected() and not Dead() and mob_alive(mob):
             outcome = wait_tame_outcome(mob, journal_t0)
+
             if outcome == 'tamed':
-                kill_serial(mob)
-                tamed = True
+                while Connected() and not Dead() and mob_alive(mob):
+                    kill_for_release(mob)
                 break
+
             if outcome == 'abort':
                 Ignore(mob)
-                aborted = True
                 break
+
+            if outcome in ('gone', 'disconnect'):
+                break
+
             if outcome == 'too_many':
                 if not kill_if_full():
                     return
+
+            if outcome in ('fail', 'retry', 'timeout', 'too_many'):
                 if TargetPresent():
                     CancelTarget()
                 Wait(200)
+                journal_t0 = recast_tame(mob)
+                if journal_t0 is None:
+                    break
                 continue
-            if outcome in ('fail', 'retry'):
-                if TargetPresent():
-                    CancelTarget()
-                Wait(200)
-                continue
+
             break
 
         if TargetPresent():
             CancelTarget()
-        if not tamed and not aborted:
-            Ignore(mob)
 
 
 def main():
