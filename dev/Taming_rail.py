@@ -17,7 +17,7 @@ TAME_TIMEOUT = 25          # idle seconds since last start/Good before giving up
 TAME_START_WAIT = 5
 TAME_RETRIES = 30
 TARGET_WAIT_MS = 2000
-KILL_TIMEOUT = 25
+KILL_SAFETY_TIMEOUT = 120
 FIND_DISTANCE = 40
 FIND_VERTICAL = 40
 
@@ -182,18 +182,28 @@ def bodies_for_skill(skill_value):
     return list(dict.fromkeys(a['body'] for a in in_window))
 
 
-def kill_for_release(serial):
-    """Kill tamed pet to free a follower slot. Taming leaves peace mode — war on to hit.
-    Training client may equip butcher knife/dagger; not required by this script."""
+def kill_until_dead(serial):
+    """Kill until HP <= 0 or object gone. No early exit while mob still alive."""
+    if not serial or not mob_alive(serial):
+        return True
     SetWarMode(True)
-    deadline = datetime.now() + timedelta(seconds=KILL_TIMEOUT)
-    while Connected() and not Dead() and IsObjectExists(serial) and GetHP(serial) > 0 and datetime.now() < deadline:
+    deadline = datetime.now() + timedelta(seconds=KILL_SAFETY_TIMEOUT)
+    while Connected() and not Dead() and mob_alive(serial) and datetime.now() < deadline:
         if TargetPresent():
             CancelTarget()
         if GetDistance(serial) > 1:
             NewMoveXY(GetX(serial), GetY(serial), True, 1, True)
         Attack(serial)
         Wait(50)
+    SetWarMode(False)
+    return not mob_alive(serial)
+
+
+def ensure_mob_dead(serial):
+    """Block until mob is dead or gone, with post-kill HP recheck."""
+    while Connected() and not Dead() and mob_alive(serial):
+        kill_until_dead(serial)
+        Wait(200)
     SetWarMode(False)
 
 
@@ -225,7 +235,7 @@ def kill_if_full():
             continue
         if 'tame' not in GetTooltip(serial).lower():
             continue
-        kill_for_release(serial)
+        ensure_mob_dead(serial)
         return True
     return False
 
@@ -247,8 +257,6 @@ def wait_tame_outcome(mob, journal_t0):
         if not IsObjectExists(mob) or GetHP(mob) <= 0:
             return 'gone'
         if InJournalBetweenTimes(JOURNAL_TAMED, journal_t0, now) > 0:
-            Wait(100)
-            kill_for_release(mob)
             return 'tamed'
         if InJournalBetweenTimes(JOURNAL_ABORT, journal_t0, now) > 0:
             return 'abort'
@@ -306,13 +314,14 @@ def recast_tame(mob):
     return None
 
 
-def find_mob(body_types):
+def find_mob(body_types, exclude=0):
     for body in body_types:
         if FindType(body, Ground()) <= 0:
             continue
         for serial in sorted(GetFindedList(), key=GetDistance):
-            if mob_alive(serial):
-                return serial
+            if serial == exclude or not mob_alive(serial):
+                continue
+            return serial
     return 0
 
 
@@ -321,11 +330,13 @@ def tame_here():
     SetFindVertical(FIND_VERTICAL)
     body_types = bodies_for_skill(GetSkillValue(SKILL))
 
+    active_mob = 0
     while Connected() and not Dead():
-        mob = find_mob(body_types)
+        mob = find_mob(body_types, exclude=active_mob if mob_alive(active_mob) else 0)
         if not mob or not kill_if_full():
             return
 
+        active_mob = mob
         journal_t0 = None
         for _ in range(TAME_RETRIES):
             if not mob_alive(mob):
@@ -335,12 +346,14 @@ def tame_here():
                 break
 
         if not mob_alive(mob):
+            active_mob = 0
             if TargetPresent():
                 CancelTarget()
             continue
 
         if journal_t0 is None:
             Ignore(mob)
+            active_mob = 0
             if TargetPresent():
                 CancelTarget()
             continue
@@ -349,15 +362,19 @@ def tame_here():
             outcome = wait_tame_outcome(mob, journal_t0)
 
             if outcome == 'tamed':
-                while Connected() and not Dead() and mob_alive(mob):
-                    kill_for_release(mob)
-                break
+                ensure_mob_dead(mob)
+                active_mob = 0
+                if TargetPresent():
+                    CancelTarget()
+                continue
 
             if outcome == 'abort':
                 Ignore(mob)
+                active_mob = 0
                 break
 
             if outcome in ('gone', 'disconnect'):
+                active_mob = 0
                 break
 
             if outcome == 'too_many':
@@ -374,6 +391,10 @@ def tame_here():
                 continue
 
             break
+
+        if mob_alive(active_mob):
+            ensure_mob_dead(active_mob)
+            active_mob = 0
 
         if TargetPresent():
             CancelTarget()
