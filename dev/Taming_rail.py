@@ -229,6 +229,9 @@ def tame_here():
         if not mob or not kill_if_full():
             return
 
+        saw_start = False
+        journal_t0 = None
+
         for attempt in range(TAME_RETRIES):
             if not Connected() or Dead() or not IsObjectExists(mob) or GetHP(mob) <= 0:
                 break
@@ -245,52 +248,63 @@ def tame_here():
             if not cast_tame(mob):
                 continue
 
-            t0 = datetime.now()
-            start_deadline = t0 + timedelta(seconds=TAME_START_WAIT)
-            saw_start = False
+            cast_t0 = datetime.now()
+            start_deadline = cast_t0 + timedelta(seconds=TAME_START_WAIT)
             while Connected() and not Dead() and datetime.now() < start_deadline:
-                if InJournalBetweenTimes(JOURNAL_STARTED, t0, datetime.now()) > 0:
-                    saw_start = True
-                    break
-                Wait(50)
-
-            if not saw_start:
-                if TargetPresent():
-                    CancelTarget()
-                continue
-
-            outcome_deadline = datetime.now() + timedelta(seconds=TAME_TIMEOUT)
-            tamed = False
-            aborted = False
-            while Connected() and not Dead() and datetime.now() < outcome_deadline:
                 now = datetime.now()
-                if InJournalBetweenTimes(JOURNAL_TAMED, t0, now) > 0:
-                    kill_serial(mob)
-                    tamed = True
+                if InJournalBetweenTimes(JOURNAL_STARTED, cast_t0, now) > 0:
+                    saw_start = True
+                    journal_t0 = now
                     break
-                if InJournalBetweenTimes(JOURNAL_ABORT, t0, now) > 0:
-                    Ignore(mob)
-                    aborted = True
-                    break
-                if InJournalBetweenTimes(JOURNAL_TOO_MANY, t0, now) > 0:
-                    if not kill_if_full():
-                        return
-                    break
-                if InJournalBetweenTimes(JOURNAL_RETRY, t0, now) > 0:
-                    break
-                if TargetPresent():
-                    CancelTarget()
-                if GetDistance(mob) > 1:
-                    NewMoveXY(GetX(mob), GetY(mob), True, 1, True)
                 Wait(50)
 
-            if tamed or aborted:
+            if saw_start:
                 break
 
             if TargetPresent():
                 CancelTarget()
             Wait(200)
         else:
+            Ignore(mob)
+            continue
+
+        if not saw_start:
+            continue
+
+        outcome_deadline = journal_t0 + timedelta(seconds=TAME_TIMEOUT)
+        tamed = False
+        aborted = False
+        while Connected() and not Dead() and datetime.now() < outcome_deadline:
+            if not IsObjectExists(mob) or GetHP(mob) <= 0:
+                break
+            now = datetime.now()
+            if InJournalBetweenTimes(JOURNAL_TAMED, journal_t0, now) > 0:
+                kill_serial(mob)
+                tamed = True
+                break
+            if InJournalBetweenTimes(JOURNAL_ABORT, journal_t0, now) > 0:
+                Ignore(mob)
+                aborted = True
+                break
+            if InJournalBetweenTimes(JOURNAL_TOO_MANY, journal_t0, now) > 0:
+                if not kill_if_full():
+                    return
+                aborted = True
+                break
+            if InJournalBetweenTimes(JOURNAL_RETRY, journal_t0, now) > 0:
+                journal_t0 = now
+                outcome_deadline = now + timedelta(seconds=TAME_TIMEOUT)
+                Wait(50)
+                continue
+            if TargetPresent():
+                CancelTarget()
+            if GetDistance(mob) > 1:
+                NewMoveXY(GetX(mob), GetY(mob), True, 1, True)
+            Wait(50)
+
+        if TargetPresent():
+            CancelTarget()
+        if not tamed and not aborted:
             Ignore(mob)
 
 
