@@ -13,7 +13,7 @@ from py_stealth import *
 SKILL = 'Animal Taming'
 GOAL = 120.0
 GAIN_WINDOW = 10.0  # skill points below current — at 30 tames min_tame 20.0 to 30.0
-TAME_TIMEOUT = 25
+TAME_TIMEOUT = 25          # idle seconds since last start/Good before giving up
 TAME_START_WAIT = 5
 TAME_RETRIES = 3
 TARGET_WAIT_MS = 2000
@@ -21,10 +21,26 @@ KILL_TIMEOUT = 25
 FIND_DISTANCE = 40
 FIND_VERTICAL = 40
 
-JOURNAL_STARTED = 'start to tame'
-JOURNAL_TAMED = 'accept you '
-JOURNAL_RETRY = 'fail to |clear path |is too far '
-JOURNAL_ABORT = 'Someone else is already taming |cannot be |too far|looks tame '
+# Stealth journal lines (ServUO AnimalTaming.cs clilocs) — example from live client:
+#   [03:10:59:523] System: System Tame which animal?              (502789)
+#   [03:10:59:583] Flow: Flow *You start to tame the creature.*  (1010597 emote)
+#   [03:11:02:746] Flow: Flow Good...                             (502790-502793 progress)
+#   [03:11:06:026] Flow: Flow Good...
+#   [03:11:09:052] a hind: a hind You fail to tame the creature.  (502798)
+# Success: It seems to accept you as master. (502799)
+JOURNAL_TARGET = 'Tame which animal'
+JOURNAL_STARTED = 'start to tame the creature|You start to tame'
+JOURNAL_GOOD = 'Good'
+JOURNAL_TAMED = 'accept you as|seems to accept you'
+JOURNAL_FAIL = 'fail to tame the creature'
+JOURNAL_RETRY = (
+    'fail to tame the creature|clear path|too far away to continue|'
+    'anger the beast|too angry to continue|been distracted'
+)
+JOURNAL_ABORT = (
+    'Someone else is already taming|cannot be tamed|looks tame already|'
+    'You can\'t tame that|no chance of taming|That is too far away'
+)
 JOURNAL_TOO_MANY = 'too many followers'
 
 # Hunting rail — move to each stop, tame nearby animals, repeat until GOAL
@@ -210,6 +226,43 @@ def kill_if_full():
     return False
 
 
+def wait_tame_started(cast_t0):
+    start_deadline = cast_t0 + timedelta(seconds=TAME_START_WAIT)
+    while Connected() and not Dead() and datetime.now() < start_deadline:
+        now = datetime.now()
+        if InJournalBetweenTimes(JOURNAL_STARTED, cast_t0, now) > 0:
+            return now
+        Wait(50)
+    return None
+
+
+def wait_tame_outcome(mob, journal_t0):
+    last_progress = journal_t0
+    while Connected() and not Dead():
+        now = datetime.now()
+        if not IsObjectExists(mob) or GetHP(mob) <= 0:
+            return 'gone'
+        if InJournalBetweenTimes(JOURNAL_TAMED, journal_t0, now) > 0:
+            return 'tamed'
+        if InJournalBetweenTimes(JOURNAL_ABORT, journal_t0, now) > 0:
+            return 'abort'
+        if InJournalBetweenTimes(JOURNAL_TOO_MANY, journal_t0, now) > 0:
+            return 'too_many'
+        if InJournalBetweenTimes(JOURNAL_FAIL, journal_t0, now) > 0:
+            return 'fail'
+        if InJournalBetweenTimes(JOURNAL_RETRY, journal_t0, now) > 0:
+            return 'retry'
+        if InJournalBetweenTimes(JOURNAL_GOOD, last_progress, now) > 0:
+            last_progress = now
+        idle_s = (now - last_progress).total_seconds()
+        if idle_s >= TAME_TIMEOUT:
+            return 'timeout'
+        if GetDistance(mob) > 1:
+            NewMoveXY(GetX(mob), GetY(mob), True, 1, True)
+        Wait(50)
+    return 'disconnect'
+
+
 def tame_here():
     SetFindDistance(FIND_DISTANCE)
     SetFindVertical(FIND_VERTICAL)
@@ -229,8 +282,8 @@ def tame_here():
         if not mob or not kill_if_full():
             return
 
-        saw_start = False
-        journal_t0 = None
+        tamed = False
+        aborted = False
 
         for attempt in range(TAME_RETRIES):
             if not Connected() or Dead() or not IsObjectExists(mob) or GetHP(mob) <= 0:
@@ -245,62 +298,39 @@ def tame_here():
             if not IsObjectExists(mob) or GetHP(mob) <= 0:
                 break
 
+            cast_t0 = datetime.now()
             if not cast_tame(mob):
                 continue
 
-            cast_t0 = datetime.now()
-            start_deadline = cast_t0 + timedelta(seconds=TAME_START_WAIT)
-            while Connected() and not Dead() and datetime.now() < start_deadline:
-                now = datetime.now()
-                if InJournalBetweenTimes(JOURNAL_STARTED, cast_t0, now) > 0:
-                    saw_start = True
-                    journal_t0 = now
-                    break
-                Wait(50)
+            journal_t0 = wait_tame_started(cast_t0)
+            if journal_t0 is None:
+                if TargetPresent():
+                    CancelTarget()
+                Wait(200)
+                continue
 
-            if saw_start:
-                break
-
-            if TargetPresent():
-                CancelTarget()
-            Wait(200)
-        else:
-            Ignore(mob)
-            continue
-
-        if not saw_start:
-            continue
-
-        outcome_deadline = journal_t0 + timedelta(seconds=TAME_TIMEOUT)
-        tamed = False
-        aborted = False
-        while Connected() and not Dead() and datetime.now() < outcome_deadline:
-            if not IsObjectExists(mob) or GetHP(mob) <= 0:
-                break
-            now = datetime.now()
-            if InJournalBetweenTimes(JOURNAL_TAMED, journal_t0, now) > 0:
+            outcome = wait_tame_outcome(mob, journal_t0)
+            if outcome == 'tamed':
                 kill_serial(mob)
                 tamed = True
                 break
-            if InJournalBetweenTimes(JOURNAL_ABORT, journal_t0, now) > 0:
+            if outcome == 'abort':
                 Ignore(mob)
                 aborted = True
                 break
-            if InJournalBetweenTimes(JOURNAL_TOO_MANY, journal_t0, now) > 0:
+            if outcome == 'too_many':
                 if not kill_if_full():
                     return
-                aborted = True
-                break
-            if InJournalBetweenTimes(JOURNAL_RETRY, journal_t0, now) > 0:
-                journal_t0 = now
-                outcome_deadline = now + timedelta(seconds=TAME_TIMEOUT)
-                Wait(50)
+                if TargetPresent():
+                    CancelTarget()
+                Wait(200)
                 continue
-            if TargetPresent():
-                CancelTarget()
-            if GetDistance(mob) > 1:
-                NewMoveXY(GetX(mob), GetY(mob), True, 1, True)
-            Wait(50)
+            if outcome in ('fail', 'retry'):
+                if TargetPresent():
+                    CancelTarget()
+                Wait(200)
+                continue
+            break
 
         if TargetPresent():
             CancelTarget()
