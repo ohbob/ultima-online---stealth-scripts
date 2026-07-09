@@ -12,7 +12,7 @@ from py_stealth import *
 
 SKILL = 'Animal Taming'
 GOAL = 120.0
-GAIN_WINDOW = 10.0  # skill points below current — at 30 tames min_tame 20.0 to 30.0
+GAIN_WINDOW = 20.0  # skill points below current — at 30 tames min_tame 20.0 to 30.0
 TAME_TIMEOUT = 25          # idle seconds since last start/Good before giving up
 TAME_START_WAIT = 5
 TAME_RETRIES = 30
@@ -207,6 +207,10 @@ def ensure_mob_dead(serial):
     SetWarMode(False)
 
 
+def tame_abort_since(cast_t0):
+    return InJournalBetweenTimes(JOURNAL_ABORT, cast_t0, datetime.now()) > 0
+
+
 def cast_tame(mob):
     if not IsObjectExists(mob) or GetHP(mob) <= 0:
         return False
@@ -214,16 +218,24 @@ def cast_tame(mob):
         CancelTarget()
     if IsWarMode(Self()):
         SetWarMode(False)
+    cast_t0 = datetime.now()
     UseSkill(SKILL)
     if not WaitForTarget(TARGET_WAIT_MS):
         if TargetPresent():
             CancelTarget()
         return False
     WaitTargetObject(mob)
+    abort_deadline = datetime.now() + timedelta(seconds=1)
+    while datetime.now() < abort_deadline:
+        if tame_abort_since(cast_t0):
+            if TargetPresent():
+                CancelTarget()
+            return 'abort'
+        Wait(50)
     if TargetPresent():
         CancelTarget()
         return False
-    return True
+    return cast_t0
 
 
 def kill_if_full():
@@ -244,9 +256,13 @@ def wait_tame_started(cast_t0):
     start_deadline = cast_t0 + timedelta(seconds=TAME_START_WAIT)
     while Connected() and not Dead() and datetime.now() < start_deadline:
         now = datetime.now()
+        if tame_abort_since(cast_t0):
+            return 'abort'
         if InJournalBetweenTimes(JOURNAL_STARTED, cast_t0, now) > 0:
             return now
         Wait(50)
+    if tame_abort_since(cast_t0):
+        return 'abort'
     return None
 
 
@@ -281,6 +297,20 @@ def mob_alive(mob):
     return mob and IsObjectExists(mob) and GetHP(mob) > 0
 
 
+def mob_already_tamed(mob):
+    """Pre-filter owned creatures — not wild mobs that show Required Taming skill."""
+    if not mob_alive(mob):
+        return False
+    tip = GetTooltip(mob).lower()
+    if 'taming' in tip or 'min. tame' in tip or 'minimum taming' in tip:
+        return False
+    return 'tamed' in tip or ' bonded' in tip or tip.endswith(' tame')
+
+
+def mob_ignored(mob):
+    return mob in GetIgnoreList()
+
+
 def move_to_mob(mob):
     while GetDistance(mob) > 1:
         if not Connected() or Dead() or not mob_alive(mob):
@@ -291,14 +321,24 @@ def move_to_mob(mob):
 
 
 def start_tame(mob):
-    """Move, cast, wait for journal start. Returns journal_t0 or None."""
+    """Move, cast, wait for journal start. Returns journal_t0, 'abort', or None."""
     if not move_to_mob(mob):
         return None
-    cast_t0 = datetime.now()
-    if not cast_tame(mob):
+    cast_result = cast_tame(mob)
+    if cast_result == 'abort':
+        return 'abort'
+    if cast_result is False:
         return None
-    journal_t0 = wait_tame_started(cast_t0)
+    journal_t0 = wait_tame_started(cast_result)
+    if journal_t0 == 'abort':
+        if TargetPresent():
+            CancelTarget()
+        return 'abort'
     if journal_t0 is None:
+        if tame_abort_since(cast_result):
+            if TargetPresent():
+                CancelTarget()
+            return 'abort'
         if TargetPresent():
             CancelTarget()
         Wait(200)
@@ -308,9 +348,11 @@ def start_tame(mob):
 def recast_tame(mob):
     """Recast on same mob after fail/retry/timeout — no start-retry budget."""
     while Connected() and not Dead() and mob_alive(mob):
-        journal_t0 = start_tame(mob)
-        if journal_t0 is not None:
-            return journal_t0
+        result = start_tame(mob)
+        if result == 'abort':
+            return 'abort'
+        if result is not None:
+            return result
     return None
 
 
@@ -319,7 +361,10 @@ def find_mob(body_types, exclude=0):
         if FindType(body, Ground()) <= 0:
             continue
         for serial in sorted(GetFindedList(), key=GetDistance):
-            if serial == exclude or not mob_alive(serial):
+            if serial == exclude or mob_ignored(serial) or not mob_alive(serial):
+                continue
+            if mob_already_tamed(serial):
+                Ignore(serial)
                 continue
             return serial
     return 0
@@ -338,12 +383,24 @@ def tame_here():
 
         active_mob = mob
         journal_t0 = None
+        start_aborted = False
         for _ in range(TAME_RETRIES):
             if not mob_alive(mob):
                 break
-            journal_t0 = start_tame(mob)
-            if journal_t0 is not None:
+            result = start_tame(mob)
+            if result == 'abort':
+                start_aborted = True
                 break
+            if result is not None:
+                journal_t0 = result
+                break
+
+        if start_aborted:
+            Ignore(mob)
+            active_mob = 0
+            if TargetPresent():
+                CancelTarget()
+            continue
 
         if not mob_alive(mob):
             active_mob = 0
@@ -358,19 +415,24 @@ def tame_here():
                 CancelTarget()
             continue
 
+        outcome_aborted = False
         while Connected() and not Dead() and mob_alive(mob):
             outcome = wait_tame_outcome(mob, journal_t0)
 
             if outcome == 'tamed':
                 ensure_mob_dead(mob)
+                Ignore(mob)
                 active_mob = 0
                 if TargetPresent():
                     CancelTarget()
-                continue
+                break
 
             if outcome == 'abort':
                 Ignore(mob)
                 active_mob = 0
+                outcome_aborted = True
+                if TargetPresent():
+                    CancelTarget()
                 break
 
             if outcome in ('gone', 'disconnect'):
@@ -385,15 +447,27 @@ def tame_here():
                 if TargetPresent():
                     CancelTarget()
                 Wait(200)
-                journal_t0 = recast_tame(mob)
-                if journal_t0 is None:
+                recast_result = recast_tame(mob)
+                if recast_result == 'abort':
+                    Ignore(mob)
+                    active_mob = 0
+                    outcome_aborted = True
+                    if TargetPresent():
+                        CancelTarget()
                     break
+                if recast_result is None:
+                    break
+                journal_t0 = recast_result
                 continue
 
             break
 
+        if outcome_aborted:
+            continue
+
         if mob_alive(active_mob):
             ensure_mob_dead(active_mob)
+            Ignore(active_mob)
             active_mob = 0
 
         if TargetPresent():
